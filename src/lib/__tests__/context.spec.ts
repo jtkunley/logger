@@ -49,6 +49,22 @@ describe('context', () => {
         );
     });
 
+    it.each([0, false, '', null])(
+        'should inject the falsy value %j, static or resolved',
+        (value) => {
+            configureContext({
+                'x-context-id-1': value,
+                'x-context-id-2': () => value,
+            });
+            expect(transform()).toEqual(
+                expect.objectContaining({
+                    'x-context-id-1': value,
+                    'x-context-id-2': value,
+                }),
+            );
+        },
+    );
+
     it('should omit values that resolve to undefined', () => {
         configureContext({ 'x-context-id-1': () => undefined });
         expect(transform()).not.toHaveProperty('x-context-id-1');

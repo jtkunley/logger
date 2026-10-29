@@ -48,14 +48,17 @@
         "prepare": "npm run build",
         "lint": "eslint .",
         "format": "prettier --write .",
-        "format:check": "prettier --check ."
+        "format:check": "prettier --check .",
+        "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
+        "safe-stable-stringify": "^3.0.0",
         "winston": "^3.18.3"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@types/node": "^22.0.0",
+        "@vitest/coverage-v8": "^5.0.5",
         "eslint": "^10.13.0",
         "eslint-config-prettier": "^10.1.8",
         "prettier": "^3.9.10",

@@ -152,6 +152,7 @@ If you see these markers, log a narrower object rather than raising the caps.
 ```sh
 npm install
 npm test
+npm run test:coverage  # fails below 100% coverage
 npm run typecheck
 npm run lint
 npm run format:check   # or `npm run format` to fix
