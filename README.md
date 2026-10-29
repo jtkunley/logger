@@ -15,10 +15,9 @@ Structured JSON logging for high-throughput Node services, built on [pino](https
 ## Install
 
 ```sh
-npm install github:jtkunley/logger
+npm i @jtkunley/logger
 ```
 
-Not yet published to the npm registry; this installs from GitHub and builds on install.
 Requires Node 22 or later. Ships with TypeScript types.
 
 ## Quick start
