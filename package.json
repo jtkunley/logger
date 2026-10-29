@@ -1,19 +1,53 @@
 {
     "name": "@jtkunley/logger",
-    "version": "0.1.0",
-    "description": "Structured JSON logging for Node services, built on winston",
-    "private": true,
+    "version": "1.0.0",
+    "description": "Structured JSON logging for Node services, built on winston, with per-request context injection and bounded serialization",
+    "keywords": [
+        "logger",
+        "logging",
+        "structured-logging",
+        "json",
+        "winston",
+        "correlation-id",
+        "asynclocalstorage",
+        "typescript"
+    ],
+    "author": "jtkunley <jtkunley@gmail.com>",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jtkunley/logger.git"
+    },
+    "homepage": "https://github.com/jtkunley/logger#readme",
+    "bugs": {
+        "url": "https://github.com/jtkunley/logger/issues"
+    },
     "type": "commonjs",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+    },
     "files": [
         "dist"
     ],
+    "sideEffects": false,
+    "engines": {
+        "node": ">=20"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
     "scripts": {
-        "build": "tsc -p tsconfig.build.json",
+        "clean": "rm -rf dist",
+        "build": "npm run clean && tsc -p tsconfig.build.json",
         "test": "vitest run",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "prepublishOnly": "npm run typecheck && npm test && npm run build"
     },
     "dependencies": {
         "winston": "^3.18.3"
