@@ -134,15 +134,15 @@ describe('RootLogger', () => {
 
     it('should inject configured context into every entry', () => {
         configureContext({
-            organizationId: 'org-123',
-            correlationId: () => 'corr-456',
+            'x-context-id-1': 'x-context-value-1',
+            'x-context-id-2': () => 'x-context-value-2',
         });
         childLogger().info('info message', { key: 'value' });
         expect(mockLog).toHaveBeenCalledWith(
             expect.objectContaining({
                 ...baseEntry,
-                organizationId: 'org-123',
-                correlationId: 'corr-456',
+                'x-context-id-1': 'x-context-value-1',
+                'x-context-id-2': 'x-context-value-2',
                 data: { key: 'value' },
             }),
             expect.anything(),
@@ -151,7 +151,7 @@ describe('RootLogger', () => {
 
     it('should not throw when a context resolver throws', () => {
         configureContext({
-            organizationId: () => {
+            'x-context-id-1': () => {
                 throw new Error('no request context');
             },
         });
@@ -159,7 +159,9 @@ describe('RootLogger', () => {
             childLogger().info('info message', { key: 'value' });
         }).not.toThrow();
         expect(mockLog).toHaveBeenCalledWith(
-            expect.not.objectContaining({ organizationId: expect.anything() }),
+            expect.not.objectContaining({
+                'x-context-id-1': expect.anything(),
+            }),
             expect.anything(),
         );
     });

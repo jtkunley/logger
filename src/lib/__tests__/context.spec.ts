@@ -26,35 +26,41 @@ describe('context', () => {
     });
 
     it('should inject static values', () => {
-        configureContext({ tier: 'test', region: 'us-west-2' });
+        configureContext({
+            'x-context-id-1': 'x-context-value-1',
+            'x-context-id-2': 'x-context-value-2',
+        });
         expect(transform()).toEqual(
-            expect.objectContaining({ tier: 'test', region: 'us-west-2' }),
+            expect.objectContaining({
+                'x-context-id-1': 'x-context-value-1',
+                'x-context-id-2': 'x-context-value-2',
+            }),
         );
     });
 
     it('should invoke resolvers on every entry', () => {
         let n = 0;
-        configureContext({ requestNumber: () => ++n });
+        configureContext({ 'x-context-id-1': () => ++n });
         expect(transform()).toEqual(
-            expect.objectContaining({ requestNumber: 1 }),
+            expect.objectContaining({ 'x-context-id-1': 1 }),
         );
         expect(transform()).toEqual(
-            expect.objectContaining({ requestNumber: 2 }),
+            expect.objectContaining({ 'x-context-id-1': 2 }),
         );
     });
 
     it('should omit values that resolve to undefined', () => {
-        configureContext({ correlationId: () => undefined });
-        expect(transform()).not.toHaveProperty('correlationId');
+        configureContext({ 'x-context-id-1': () => undefined });
+        expect(transform()).not.toHaveProperty('x-context-id-1');
     });
 
     it('should treat a throwing resolver as unset so logging never crashes', () => {
         configureContext({
-            organizationId: () => {
+            'x-context-id-1': () => {
                 throw new Error('no request context');
             },
         });
-        expect(transform()).not.toHaveProperty('organizationId');
+        expect(transform()).not.toHaveProperty('x-context-id-1');
     });
 
     it('should never overwrite fields already on the entry', () => {
@@ -63,27 +69,27 @@ describe('context', () => {
     });
 
     it('should merge successive calls rather than replacing the whole context', () => {
-        configureContext({ organizationId: 'org-123' });
-        configureContext({ correlationId: () => 'corr-456' });
+        configureContext({ 'x-context-id-1': 'x-context-value-1' });
+        configureContext({ 'x-context-id-2': () => 'x-context-value-2' });
         expect(transform()).toEqual(
             expect.objectContaining({
-                organizationId: 'org-123',
-                correlationId: 'corr-456',
+                'x-context-id-1': 'x-context-value-1',
+                'x-context-id-2': 'x-context-value-2',
             }),
         );
     });
 
     it('should let a later call override a previously configured value', () => {
-        configureContext({ organizationId: 'org-123' });
-        configureContext({ organizationId: 'org-999' });
+        configureContext({ 'x-context-id-1': 'x-context-value-1' });
+        configureContext({ 'x-context-id-1': 'x-context-value-2' });
         expect(transform()).toEqual(
-            expect.objectContaining({ organizationId: 'org-999' }),
+            expect.objectContaining({ 'x-context-id-1': 'x-context-value-2' }),
         );
     });
 
     it('should remove a key passed explicitly as undefined', () => {
-        configureContext({ organizationId: 'org-123' });
-        configureContext({ organizationId: undefined });
-        expect(transform()).not.toHaveProperty('organizationId');
+        configureContext({ 'x-context-id-1': 'x-context-value-1' });
+        configureContext({ 'x-context-id-1': undefined });
+        expect(transform()).not.toHaveProperty('x-context-id-1');
     });
 });

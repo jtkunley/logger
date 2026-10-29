@@ -20,8 +20,8 @@ let entries: [string, unknown][] = [];
  * @example
  * ```ts
  * logger.configureContext({
- *     tier: process.env.TIER,
- *     correlationId: () => requestStore.getStore()?.correlationId,
+ *     'x-context-id-1': 'x-context-value-1',
+ *     'x-context-id-2': () => requestStore.getStore()?.contextValue,
  * });
  * ```
  */
