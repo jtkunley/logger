@@ -1,8 +1,7 @@
 # @jtkunley/logger
 
-[![npm](https://img.shields.io/npm/v/@jtkunley/logger)](https://www.npmjs.com/package/@jtkunley/logger)
 [![CI](https://github.com/jtkunley/logger/actions/workflows/ci.yml/badge.svg)](https://github.com/jtkunley/logger/actions/workflows/ci.yml)
-[![license](https://img.shields.io/npm/l/@jtkunley/logger)](./LICENSE)
+[![license](https://img.shields.io/github/license/jtkunley/logger)](./LICENSE)
 
 Structured JSON logging for Node services, built on [winston](https://github.com/winstonjs/winston).
 
@@ -15,9 +14,10 @@ Structured JSON logging for Node services, built on [winston](https://github.com
 ## Install
 
 ```sh
-npm install @jtkunley/logger
+npm install github:jtkunley/logger
 ```
 
+Not yet published to the npm registry; this installs from GitHub and builds on install.
 Requires Node 20 or later. Ships with TypeScript types.
 
 ## Quick start

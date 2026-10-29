@@ -1,6 +1,7 @@
 {
     "name": "@jtkunley/logger",
     "version": "1.0.0",
+    "private": true,
     "description": "Structured JSON logging for Node services, built on winston, with per-request context injection and bounded serialization",
     "keywords": [
         "logger",
@@ -39,15 +40,12 @@
     "engines": {
         "node": ">=20"
     },
-    "publishConfig": {
-        "access": "public"
-    },
     "scripts": {
         "clean": "rm -rf dist",
         "build": "npm run clean && tsc -p tsconfig.build.json",
         "test": "vitest run",
         "typecheck": "tsc --noEmit",
-        "prepublishOnly": "npm run typecheck && npm test && npm run build"
+        "prepare": "npm run build"
     },
     "dependencies": {
         "winston": "^3.18.3"
