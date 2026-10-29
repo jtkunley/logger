@@ -1,7 +1,6 @@
 {
     "name": "@jtkunley/logger",
     "version": "1.0.0",
-    "private": true,
     "description": "Structured JSON logging for Node services, built on pino, with off-main-thread I/O, per-request context injection, and bounded serialization",
     "keywords": [
         "logger",
@@ -34,7 +33,8 @@
         "./package.json": "./package.json"
     },
     "files": [
-        "dist"
+        "dist",
+        "CHANGELOG.md"
     ],
     "sideEffects": false,
     "engines": {
@@ -64,5 +64,8 @@
         "typescript": "^6.0.3",
         "typescript-eslint": "^8.72.1",
         "vitest": "^5.0.5"
+    },
+    "publishConfig": {
+        "access": "public"
     }
 }

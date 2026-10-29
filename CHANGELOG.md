@@ -1,9 +1,8 @@
 # Changelog
 
-## 1.0.0
+## 1.0.0 (2026-10-28)
 
-Initial release. Requires Node 22 or later. Install from GitHub with
-`npm install github:jtkunley/logger`; not yet published to the npm registry.
+Initial release. Requires Node 22 or later.
 
 - Built on pino 10, writing pino's standard JSON format with `service`, `module`, `action`, `pid`, and `hostname`.
 - Writes run in a worker thread; stdout is always a destination, and `transports` adds any pino transport.
