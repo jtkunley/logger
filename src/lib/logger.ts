@@ -43,7 +43,10 @@ export function init(
             pid: PID,
             hostname: HOSTNAME,
         },
-        transports: [new transports.Console()],
+        transports: [
+            new transports.Console(),
+            ...Object.values(options.customTransports ?? {}),
+        ],
     });
     return {
         level: (level: LoggerLevel) => {

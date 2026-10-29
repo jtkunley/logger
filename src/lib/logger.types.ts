@@ -1,7 +1,14 @@
+import { transport } from 'winston';
+
 export type LoggerLevel = 'error' | 'warn' | 'info' | 'debug';
 
 export interface LoggerOptions {
     level?: LoggerLevel;
+    /**
+     * A transport without its own `level` follows the root logger's level, so runtime
+     * level changes apply to it too.
+     */
+    customTransports?: { [label: string]: transport };
 }
 
 export type Data = Record<string, unknown>;

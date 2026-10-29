@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { transports } from 'winston';
+import Transport from 'winston-transport';
 
 import { init } from '../logger';
 
@@ -91,6 +92,28 @@ describe('RootLogger', () => {
             }),
             expect.anything(),
         );
+    });
+
+    it('should apply level changes to custom transports without their own level', () => {
+        const customLog = vi.fn((_info: unknown, next: () => void) => next());
+        class CustomTransport extends Transport {
+            override log(info: unknown, next: () => void) {
+                customLog(info, next);
+            }
+        }
+        const rootLogger = init('SampleServiceName', {
+            customTransports: { custom: new CustomTransport() },
+        });
+        const logger = rootLogger.child('someService', 'someAction');
+
+        rootLogger.level('error');
+        logger.info('info message', { key: 'value' });
+        expect(customLog).not.toHaveBeenCalled();
+        expect(mockLog).not.toHaveBeenCalled();
+
+        logger.error('error message', new Error('oops'), {});
+        expect(customLog).toHaveBeenCalledTimes(1);
+        expect(mockLog).toHaveBeenCalledTimes(1);
     });
 
     it('should emit a parseable json line including pid and hostname', () => {
