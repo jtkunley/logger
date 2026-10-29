@@ -18,7 +18,7 @@ npm install github:jtkunley/logger
 ```
 
 Not yet published to the npm registry; this installs from GitHub and builds on install.
-Requires Node 20 or later. Ships with TypeScript types.
+Requires Node 22 or later. Ships with TypeScript types.
 
 ## Quick start
 
