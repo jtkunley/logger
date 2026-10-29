@@ -17,13 +17,27 @@ const { timestamp, combine, json } = format;
 const PID = process.pid;
 const HOSTNAME = hostname();
 
+/**
+ * Without caps, logging a Koa context or an axios error turns one log call into
+ * megabytes of blocking `JSON.stringify` on the request path. Truncation is marked in
+ * the output rather than silent.
+ *
+ * Key sorting is off: logs are machine-consumed, and sorting costs a sort per object
+ * per entry.
+ */
+const jsonOptions = {
+    deterministic: false,
+    maximumDepth: 10,
+    maximumBreadth: 100,
+};
+
 export function init(
     serviceName: string,
     options: LoggerOptions = {},
 ): RootLogger {
     const rootLogger = createLogger({
         level: options.level ?? 'info',
-        format: combine(timestamp(), json()),
+        format: combine(timestamp(), json(jsonOptions)),
         defaultMeta: {
             service: serviceName,
             pid: PID,

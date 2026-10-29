@@ -106,4 +106,22 @@ describe('RootLogger', () => {
             }),
         );
     });
+
+    it('should cap deeply nested data rather than serializing without bound', () => {
+        let nested: Record<string, unknown> = { leaf: 'bottom' };
+        for (let i = 0; i < 15; i++) {
+            nested = { [`level${i}`]: nested };
+        }
+        childLogger().info('info message', { nested });
+        const line = serializedLine();
+        expect(line).toContain('"[Object]"');
+        expect(line).not.toContain('bottom');
+    });
+
+    it('should cap wide collections in data rather than serializing without bound', () => {
+        childLogger().info('info message', {
+            wide: Array.from({ length: 105 }, (_, i) => i),
+        });
+        expect(serializedLine()).toContain('items not stringified');
+    });
 });
