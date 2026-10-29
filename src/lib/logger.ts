@@ -89,13 +89,14 @@ export function init(
                         logger.warn({ message, data });
                     }
                 },
-                error: (message: string, error: Error, data: Data): void => {
+                error: (message: string, error: unknown, data: Data): void => {
                     if (logger.isLevelEnabled('error')) {
                         logger.error({
                             message,
                             data,
-                            error: error?.message,
-                            stack: error?.stack,
+                            ...(error instanceof Error
+                                ? { error: error.message, stack: error.stack }
+                                : { error }),
                         });
                     }
                 },

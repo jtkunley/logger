@@ -8,4 +8,5 @@ Initial release. Requires Node 22 or later. Install from GitHub with
 - Structured JSON entries with `service`, `module`, `action`, `timestamp`, `pid`, and `hostname`.
 - `configureContext` injects static or per-entry resolved name/value pairs into every entry.
 - Serialization capped at 10 levels deep and 100 items per object or array.
+- `error` accepts any caught value; `Error`s log their message and stack.
 - Runtime level changes via `RootLogger.level`, applied to child loggers and level-less custom transports.

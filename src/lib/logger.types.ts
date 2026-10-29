@@ -27,18 +27,20 @@ export interface LoggerOptions {
      * });
      * ```
      */
-    customTransports?: { [label: string]: transport };
+    customTransports?: Record<string, transport>;
 }
 
 /**
- * A context value: either a static value logged as-is, or a resolver function invoked
- * on every log entry. A value that is, or resolves to, `undefined` is omitted; a
- * resolver that throws is treated the same way.
+ * A function invoked on every log entry; its return value is logged. Returning
+ * `undefined` or throwing omits the field from that entry.
  */
-export type ContextValue = unknown | (() => unknown);
+export type ContextResolver = () => unknown;
 
 /**
  * Name/value pairs added at the root of every log entry. See `configureContext`.
+ *
+ * A function value is a {@link ContextResolver}; any other value is logged as-is. A
+ * value of `undefined` is omitted.
  *
  * @example
  * ```ts
@@ -48,7 +50,7 @@ export type ContextValue = unknown | (() => unknown);
  * };
  * ```
  */
-export type Context = Record<string, ContextValue | undefined>;
+export type Context = Record<string, unknown>;
 
 /**
  * Arbitrary structured data attached to a log entry under the `data` field.
@@ -100,19 +102,19 @@ export interface ChildLogger {
     /** Log something unexpected that didn't stop the operation. */
     warn(message: string, data: Data): void;
     /**
-     * Log a failure. The error's message and stack are added at the root of the entry
-     * as `error` and `stack`.
+     * Log a failure. For an `Error`, its message and stack are added at the root of the
+     * entry as `error` and `stack`; any other thrown value is logged as `error` as-is.
      *
      * @example
      * ```ts
      * try {
      *     await charge(payment);
      * } catch (err) {
-     *     log.error('Failed to charge payment', err as Error, { paymentId });
+     *     log.error('Failed to charge payment', err, { paymentId });
      * }
      * ```
      */
-    error(message: string, error: Error, data: Data): void;
+    error(message: string, error: unknown, data: Data): void;
     /**
      * Escape hatch to the underlying winston logger, for features this wrapper doesn't
      * expose. Entries written through it still get context and respect the configured level.

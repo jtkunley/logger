@@ -35,15 +35,15 @@ Output (one line, formatted here for readability):
 
 ```json
 {
-  "service": "payment-service",
-  "module": "paymentController",
-  "action": "charge",
-  "level": "info",
-  "message": "Payment charged",
-  "data": { "paymentId": "pay_123", "amountCents": 4999 },
-  "timestamp": "2026-10-29T01:44:14.677Z",
-  "pid": 42799,
-  "hostname": "api-7f9c"
+    "service": "payment-service",
+    "module": "paymentController",
+    "action": "charge",
+    "level": "info",
+    "message": "Payment charged",
+    "data": { "paymentId": "pay_123", "amountCents": 4999 },
+    "timestamp": "2026-10-29T01:44:14.677Z",
+    "pid": 42799,
+    "hostname": "api-7f9c"
 }
 ```
 
@@ -71,7 +71,9 @@ log.warn('Charged, but receipt email failed', { paymentId });
 log.error('Failed to charge payment', error, { paymentId });
 ```
 
-`error` adds the error's message and stack at the root of the entry as `error` and `stack`.
+`error` accepts whatever was caught, so `catch (err)` needs no cast. For an `Error`, its
+message and stack are added at the root of the entry as `error` and `stack`; any other
+value is logged as `error` as-is.
 
 ### Injecting context
 
@@ -85,8 +87,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 const requestStore = new AsyncLocalStorage<{ correlationId: string }>();
 
 logger.configureContext({
-  tier: process.env.TIER,
-  correlationId: () => requestStore.getStore()?.correlationId,
+    tier: process.env.TIER,
+    correlationId: () => requestStore.getStore()?.correlationId,
 });
 ```
 
@@ -114,7 +116,7 @@ The console is always a destination. Add any winston transport alongside it:
 import { transports } from 'winston';
 
 logger.init('payment-service', {
-  customTransports: { file: new transports.File({ filename: 'app.log' }) },
+    customTransports: { file: new transports.File({ filename: 'app.log' }) },
 });
 ```
 
@@ -134,17 +136,17 @@ If you see these markers, log a narrower object rather than raising the caps.
 
 ## API
 
-| Export | Description |
-| --- | --- |
-| `logger.init(serviceName, options?)` | Create the root logger. Options: `level` (default `'info'`), `customTransports`. |
-| `logger.configureContext(context)` | Add static or resolved name/value pairs to every entry. |
-| `RootLogger.child(module, action)` | Create a child logger. |
-| `RootLogger.level(level)` | Change the minimum level at runtime. |
-| `ChildLogger.debug / info / warn(message, data)` | Log at that level. |
-| `ChildLogger.error(message, error, data)` | Log an error with its message and stack. |
-| `ChildLogger.getVendorInstance()` | Access the underlying winston logger. |
+| Export                                           | Description                                                                      |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `logger.init(serviceName, options?)`             | Create the root logger. Options: `level` (default `'info'`), `customTransports`. |
+| `logger.configureContext(context)`               | Add static or resolved name/value pairs to every entry.                          |
+| `RootLogger.child(module, action)`               | Create a child logger.                                                           |
+| `RootLogger.level(level)`                        | Change the minimum level at runtime.                                             |
+| `ChildLogger.debug / info / warn(message, data)` | Log at that level.                                                               |
+| `ChildLogger.error(message, error, data)`        | Log an error with its message and stack.                                         |
+| `ChildLogger.getVendorInstance()`                | Access the underlying winston logger.                                            |
 
-Exported types: `LoggerLevel`, `LoggerOptions`, `Context`, `ContextValue`, `Data`,
+Exported types: `LoggerLevel`, `LoggerOptions`, `Context`, `ContextResolver`, `Data`,
 `RootLogger`, `ChildLogger`. Full documentation is in the type definitions.
 
 ## Development
@@ -153,6 +155,8 @@ Exported types: `LoggerLevel`, `LoggerOptions`, `Context`, `ContextValue`, `Data
 npm install
 npm test
 npm run typecheck
+npm run lint
+npm run format:check   # or `npm run format` to fix
 npm run build
 ```
 

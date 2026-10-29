@@ -1,8 +1,8 @@
 import { format } from 'winston';
-import { Context, ContextValue } from './logger.types';
+import { Context, ContextResolver } from './logger.types';
 
 let context: Context = {};
-let entries: [string, ContextValue][] = [];
+let entries: [string, unknown][] = [];
 
 /**
  * Add name/value pairs to every log entry, from every logger. Call once at startup;
@@ -28,13 +28,17 @@ let entries: [string, ContextValue][] = [];
 export function configureContext(newContext: Context): void {
     context = { ...context, ...newContext };
     entries = Object.entries(context).filter(
-        (entry): entry is [string, ContextValue] => entry[1] !== undefined,
+        ([, value]) => value !== undefined,
     );
 }
 
+function isResolver(value: unknown): value is ContextResolver {
+    return typeof value === 'function';
+}
+
 /** Logging must never crash the caller, so a throwing resolver is treated as unset. */
-function resolve(value: ContextValue): unknown {
-    if (typeof value !== 'function') return value;
+function resolve(value: unknown): unknown {
+    if (!isResolver(value)) return value;
     try {
         return value();
     } catch {

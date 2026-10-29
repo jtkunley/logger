@@ -74,6 +74,18 @@ describe('RootLogger', () => {
         );
     });
 
+    it('should log a thrown non-Error value as-is', () => {
+        childLogger().error('error message', 'plain string', {});
+        expect(mockLog).toHaveBeenCalledWith(
+            expect.objectContaining({ error: 'plain string' }),
+            expect.anything(),
+        );
+        expect(mockLog).toHaveBeenCalledWith(
+            expect.not.objectContaining({ stack: expect.anything() }),
+            expect.anything(),
+        );
+    });
+
     it('should respect log level', () => {
         childLogger('info').debug('debug message', { key: 'value' });
         expect(mockLog).not.toHaveBeenCalled();
@@ -97,7 +109,9 @@ describe('RootLogger', () => {
     });
 
     it('should apply level changes to custom transports without their own level', () => {
-        const customLog = vi.fn((_info: unknown, next: () => void) => next());
+        const customLog = vi.fn((_info: unknown, next: () => void) => {
+            next();
+        });
         class CustomTransport extends Transport {
             override log(info: unknown, next: () => void) {
                 customLog(info, next);
@@ -141,9 +155,9 @@ describe('RootLogger', () => {
                 throw new Error('no request context');
             },
         });
-        expect(() =>
-            childLogger().info('info message', { key: 'value' }),
-        ).not.toThrow();
+        expect(() => {
+            childLogger().info('info message', { key: 'value' });
+        }).not.toThrow();
         expect(mockLog).toHaveBeenCalledWith(
             expect.not.objectContaining({ organizationId: expect.anything() }),
             expect.anything(),

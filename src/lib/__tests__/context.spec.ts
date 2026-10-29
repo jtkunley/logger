@@ -13,7 +13,9 @@ function transform(info: Record<string, unknown> = {}) {
 }
 
 describe('context', () => {
-    afterEach(() => _resetContextForTesting());
+    afterEach(() => {
+        _resetContextForTesting();
+    });
 
     it('should leave the entry untouched when nothing is configured', () => {
         expect(transform({ data: { key: 'value' } })).toEqual({
