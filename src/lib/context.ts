@@ -43,7 +43,7 @@ function resolve(value: ContextValue): unknown {
 }
 
 /** Context never overwrites existing fields, so a context key can't corrupt the log shape. */
-export const contextFormat = format((info) => {
+export const contextFormat: ReturnType<typeof format> = format((info) => {
     for (const [key, value] of entries) {
         if (key in info) continue;
         const resolved = resolve(value);
