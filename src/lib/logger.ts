@@ -34,6 +34,22 @@ const jsonOptions = {
     maximumBreadth: 100,
 };
 
+/**
+ * Create the service-wide root logger. Call once at startup, then create a child logger
+ * per module and action.
+ *
+ * @param serviceName - Added to every entry as `service`.
+ * @param options - Minimum level and extra transports.
+ *
+ * @example
+ * ```ts
+ * import { logger } from '@jtkunley/logger';
+ *
+ * const rootLogger = logger.init('VisitService', { level: 'debug' });
+ * const log = rootLogger.child('paymentController', 'charge');
+ * log.info('Payment charged', { paymentId });
+ * ```
+ */
 export function init(
     serviceName: string,
     options: LoggerOptions = {},
