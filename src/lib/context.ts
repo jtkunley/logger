@@ -1,5 +1,19 @@
-import { format } from 'winston';
 import { Context, ContextResolver } from './logger.types';
+import { bound } from './serialize';
+
+/** Fields every entry already has. Pino writes them separately, so a context key with the same name would duplicate them. */
+const BUILT_IN_FIELDS = new Set([
+    'level',
+    'time',
+    'pid',
+    'hostname',
+    'service',
+    'module',
+    'action',
+    'msg',
+    'data',
+    'err',
+]);
 
 let context: Context = {};
 let entries: [string, unknown][] = [];
@@ -11,7 +25,7 @@ let entries: [string, unknown][] = [];
  * Values can be static or resolver functions. Resolvers run on every log entry, so
  * request-scoped values (e.g. from `AsyncLocalStorage`) are correct per line. Values that
  * are, or resolve to, `undefined` are omitted, and a resolver that throws is treated the
- * same way. Context never overwrites built-in fields like `message` or `service`.
+ * same way. Context never overwrites built-in fields like `msg` or `service`.
  *
  * Calls are merged rather than replaced, so a library configuring one field and an
  * application configuring another don't clobber each other. Pass a key as `undefined`
@@ -28,7 +42,7 @@ let entries: [string, unknown][] = [];
 export function configureContext(newContext: Context): void {
     context = { ...context, ...newContext };
     entries = Object.entries(context).filter(
-        ([, value]) => value !== undefined,
+        ([key, value]) => value !== undefined && !BUILT_IN_FIELDS.has(key),
     );
 }
 
@@ -46,17 +60,17 @@ function resolve(value: unknown): unknown {
     }
 }
 
-/** Context never overwrites existing fields, so a context key can't corrupt the log shape. */
-export const contextFormat: ReturnType<typeof format> = format((info) => {
+/** The configured context for one entry, with resolvers run and values bounded. */
+export function resolveContext(): Record<string, unknown> {
+    const resolved: Record<string, unknown> = {};
     for (const [key, value] of entries) {
-        if (key in info) continue;
-        const resolved = resolve(value);
-        if (resolved !== undefined) {
-            info[key] = resolved;
+        const result = resolve(value);
+        if (result !== undefined) {
+            resolved[key] = bound(result);
         }
     }
-    return info;
-});
+    return resolved;
+}
 
 export function _resetContextForTesting(): void {
     context = {};

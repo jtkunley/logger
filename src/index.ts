@@ -7,4 +7,5 @@ export type {
     LoggerLevel,
     LoggerOptions,
     RootLogger,
+    TransportTarget,
 } from './lib/logger.types';
