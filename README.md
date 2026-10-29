@@ -136,18 +136,16 @@ If you see these markers, log a narrower object rather than raising the caps.
 
 ## API
 
-| Export                                           | Description                                                                      |
-| ------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `logger.init(serviceName, options?)`             | Create the root logger. Options: `level` (default `'info'`), `customTransports`. |
-| `logger.configureContext(context)`               | Add static or resolved name/value pairs to every entry.                          |
-| `RootLogger.child(module, action)`               | Create a child logger.                                                           |
-| `RootLogger.level(level)`                        | Change the minimum level at runtime.                                             |
-| `ChildLogger.debug / info / warn(message, data)` | Log at that level.                                                               |
-| `ChildLogger.error(message, error, data)`        | Log an error with its message and stack.                                         |
-| `ChildLogger.getVendorInstance()`                | Access the underlying winston logger.                                            |
-
-Exported types: `LoggerLevel`, `LoggerOptions`, `Context`, `ContextResolver`, `Data`,
-`RootLogger`, `ChildLogger`. Full documentation is in the type definitions.
+| Export                                                                                | Description                                                                      |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `logger.init(serviceName, options?)`                                                  | Create the root logger. Options: `level` (default `'info'`), `customTransports`. |
+| `logger.configureContext(context)`                                                    | Add static or resolved name/value pairs to every entry.                          |
+| `RootLogger.child(module, action)`                                                    | Create a child logger.                                                           |
+| `RootLogger.level(level)`                                                             | Change the minimum level at runtime.                                             |
+| `ChildLogger.debug / info / warn(message, data)`                                      | Log at that level.                                                               |
+| `ChildLogger.error(message, error, data)`                                             | Log an error with its message and stack.                                         |
+| Exported types: `LoggerLevel`, `LoggerOptions`, `Context`, `ContextResolver`, `Data`, |
+| `RootLogger`, `ChildLogger`. Full documentation is in the type definitions.           |
 
 ## Development
 
