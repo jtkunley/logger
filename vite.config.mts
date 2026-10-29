@@ -5,5 +5,11 @@ export default defineConfig({
         globals: true,
         environment: 'node',
         include: ['src/**/*.spec.ts'],
+        coverage: {
+            provider: 'v8',
+            include: ['src/**/*.ts'],
+            exclude: ['src/**/__tests__/**'],
+            thresholds: { 100: true },
+        },
     },
 });
