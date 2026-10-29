@@ -11,6 +11,10 @@ export interface LoggerOptions {
     customTransports?: { [label: string]: transport };
 }
 
+export type ContextValue = unknown | (() => unknown);
+
+export type Context = Record<string, ContextValue | undefined>;
+
 export type Data = Record<string, unknown>;
 
 export interface RootLogger {

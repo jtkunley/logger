@@ -7,6 +7,9 @@ import {
     Data,
 } from './logger.types';
 import { hostname } from 'os';
+import { contextFormat } from './context';
+
+export { configureContext } from './context';
 
 const { timestamp, combine, json } = format;
 
@@ -37,7 +40,7 @@ export function init(
 ): RootLogger {
     const rootLogger = createLogger({
         level: options.level ?? 'info',
-        format: combine(timestamp(), json(jsonOptions)),
+        format: combine(timestamp(), contextFormat(), json(jsonOptions)),
         defaultMeta: {
             service: serviceName,
             pid: PID,
