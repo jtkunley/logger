@@ -2,7 +2,7 @@
 
 ## 1.0.0
 
-Initial public release.
+Initial release.
 
 - Structured JSON entries with `service`, `module`, `action`, `timestamp`, `pid`, and `hostname`.
 - `configureContext` injects static or per-entry resolved name/value pairs into every entry.
