@@ -9,7 +9,7 @@
         "structured-logging",
         "json",
         "winston",
-        "correlation-id",
+        "request-context",
         "asynclocalstorage",
         "typescript"
     ],

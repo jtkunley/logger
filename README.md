@@ -79,16 +79,16 @@ value is logged as `error` as-is.
 
 `configureContext` adds name/value pairs to every entry from every logger. Values can
 be static, or functions that run on every entry. Functions are the way to log
-request-scoped values such as a correlation ID without passing them to every call:
+request-scoped values without passing them to every call:
 
 ```ts
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-const requestStore = new AsyncLocalStorage<{ correlationId: string }>();
+const requestStore = new AsyncLocalStorage<{ contextValue: string }>();
 
 logger.configureContext({
-    tier: process.env.TIER,
-    correlationId: () => requestStore.getStore()?.correlationId,
+    'x-context-id-1': 'x-context-value-1',
+    'x-context-id-2': () => requestStore.getStore()?.contextValue,
 });
 ```
 
