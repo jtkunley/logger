@@ -1,4 +1,4 @@
-import { transports, createLogger, format, Logger } from 'winston';
+import { transports, createLogger, format } from 'winston';
 import {
     ChildLogger,
     LoggerLevel,
@@ -100,7 +100,6 @@ export function init(
                         });
                     }
                 },
-                getVendorInstance: (): Logger => logger,
             };
         },
     };

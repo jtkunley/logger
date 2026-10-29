@@ -1,4 +1,4 @@
-import { Logger, transport } from 'winston';
+import { transport } from 'winston';
 
 /**
  * Log severity, from most to least severe. Setting a level emits that level and
@@ -115,9 +115,4 @@ export interface ChildLogger {
      * ```
      */
     error(message: string, error: unknown, data: Data): void;
-    /**
-     * Escape hatch to the underlying winston logger, for features this wrapper doesn't
-     * expose. Entries written through it still get context and respect the configured level.
-     */
-    getVendorInstance(): Logger;
 }
