@@ -22,7 +22,7 @@ export interface LoggerOptions {
      *
      * @example
      * ```ts
-     * init('VisitService', {
+     * init('my-service', {
      *     customTransports: { file: new transports.File({ filename: 'app.log' }) },
      * });
      * ```
@@ -67,13 +67,13 @@ export interface RootLogger {
      * Create a logger for one logical action within a module. Every entry it writes
      * includes `module` and `action`.
      *
-     * @param module - The code module, e.g. `'paymentController'`.
-     * @param action - The operation within the module, e.g. `'charge'`.
+     * @param module - The code module, e.g. `'userController'`.
+     * @param action - The operation within the module, e.g. `'create'`.
      *
      * @example
      * ```ts
-     * const log = rootLogger.child('paymentController', 'charge');
-     * log.info('Payment charged', { paymentId });
+     * const log = rootLogger.child('userController', 'create');
+     * log.info('User created', { userId });
      * ```
      */
     child(module: string, action: string): ChildLogger;
@@ -108,9 +108,9 @@ export interface ChildLogger {
      * @example
      * ```ts
      * try {
-     *     await charge(payment);
+     *     await createUser(input);
      * } catch (err) {
-     *     log.error('Failed to charge payment', err, { paymentId });
+     *     log.error('Failed to create user', err, { userId });
      * }
      * ```
      */

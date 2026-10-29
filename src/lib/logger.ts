@@ -45,9 +45,9 @@ const jsonOptions = {
  * ```ts
  * import { logger } from '@jtkunley/logger';
  *
- * const rootLogger = logger.init('VisitService', { level: 'debug' });
- * const log = rootLogger.child('paymentController', 'charge');
- * log.info('Payment charged', { paymentId });
+ * const rootLogger = logger.init('my-service', { level: 'debug' });
+ * const log = rootLogger.child('userController', 'create');
+ * log.info('User created', { userId });
  * ```
  */
 export function init(
