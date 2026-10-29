@@ -1,10 +1,27 @@
-import { transport } from 'winston';
-
 /**
  * Log severity, from most to least severe. Setting a level emits that level and
  * everything more severe: `'warn'` emits `warn` and `error`.
  */
 export type LoggerLevel = 'error' | 'warn' | 'info' | 'debug';
+
+/**
+ * A pino transport to send entries to, in addition to stdout. It runs in the logging
+ * worker thread, so its I/O never blocks the main thread.
+ *
+ * Any pino transport works: a package name, or an absolute path to your own module.
+ */
+export interface TransportTarget {
+    /** Module that builds the transport, e.g. `'pino/file'` or `'pino-loki'`. */
+    target: string;
+    /** Passed to the transport. Must be serializable, since it crosses into the worker thread. */
+    options?: Record<string, unknown>;
+    /**
+     * Minimum severity for this transport. It can only narrow the root logger's level,
+     * never widen it. Without it, the transport follows the root logger's level,
+     * including runtime changes.
+     */
+    level?: LoggerLevel;
+}
 
 /** Options for `init`. */
 export interface LoggerOptions {
@@ -14,20 +31,18 @@ export interface LoggerOptions {
      */
     level?: LoggerLevel;
     /**
-     * Extra winston transports to write to, in addition to the console. Keys are
-     * labels for your own reference.
-     *
-     * A transport without its own `level` follows the root logger's level, so runtime
-     * level changes apply to it too.
+     * Extra destinations. Stdout is always one.
      *
      * @example
      * ```ts
      * init('my-service', {
-     *     customTransports: { file: new transports.File({ filename: 'app.log' }) },
+     *     transports: [
+     *         { target: 'pino/file', options: { destination: '/var/log/app.log' } },
+     *     ],
      * });
      * ```
      */
-    customTransports?: Record<string, transport>;
+    transports?: TransportTarget[];
 }
 
 /**
@@ -87,12 +102,29 @@ export interface RootLogger {
      * ```
      */
     level(level: LoggerLevel): void;
+    /**
+     * Wait until every entry logged so far has been written. Call it before exiting
+     * deliberately, e.g. in a shutdown or fatal-error handler; entries still buffered
+     * when a process is killed are lost. Never rejects, and gives up after 10 seconds so
+     * a stuck transport can't hang shutdown.
+     *
+     * @example
+     * ```ts
+     * process.on('SIGTERM', async () => {
+     *     await server.close();
+     *     await rootLogger.flush();
+     *     process.exit(0);
+     * });
+     * ```
+     */
+    flush(): Promise<void>;
 }
 
 /**
- * Writes structured JSON log entries. Every entry includes `service`, `module`,
- * `action`, `level`, `message`, `timestamp`, `pid`, `hostname`, `data`, and any
- * configured {@link Context}.
+ * Writes structured JSON log entries, one per line, in pino's format. Every entry
+ * includes `level` (pino's number: 20 debug, 30 info, 40 warn, 50 error), `time`
+ * (epoch milliseconds), `service`, `pid`, `hostname`, `module`, `action`, `msg`,
+ * `data`, and any configured {@link Context}.
  */
 export interface ChildLogger {
     /** Log verbose diagnostic detail, usually off in production. */
@@ -102,8 +134,9 @@ export interface ChildLogger {
     /** Log something unexpected that didn't stop the operation. */
     warn(message: string, data: Data): void;
     /**
-     * Log a failure. For an `Error`, its message and stack are added at the root of the
-     * entry as `error` and `stack`; any other thrown value is logged as `error` as-is.
+     * Log a failure, with the caught value under `err`. An `Error` is logged as
+     * `{ type, message, stack }` plus any extra properties, with its `cause` chain
+     * appended to `message` and `stack`. Any other thrown value is logged as-is.
      *
      * @example
      * ```ts

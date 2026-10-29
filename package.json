@@ -2,13 +2,13 @@
     "name": "@jtkunley/logger",
     "version": "1.0.0",
     "private": true,
-    "description": "Structured JSON logging for Node services, built on winston, with per-request context injection and bounded serialization",
+    "description": "Structured JSON logging for Node services, built on pino, with off-main-thread I/O, per-request context injection, and bounded serialization",
     "keywords": [
         "logger",
         "logging",
         "structured-logging",
         "json",
-        "winston",
+        "pino",
         "request-context",
         "asynclocalstorage",
         "typescript"
@@ -52,8 +52,7 @@
         "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
-        "safe-stable-stringify": "^3.0.0",
-        "winston": "^3.18.3"
+        "pino": "^10.4.0"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
@@ -64,7 +63,6 @@
         "prettier": "^3.9.10",
         "typescript": "^6.0.3",
         "typescript-eslint": "^8.72.1",
-        "vitest": "^5.0.5",
-        "winston-transport": "^4.9.0"
+        "vitest": "^5.0.5"
     }
 }
