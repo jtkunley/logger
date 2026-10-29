@@ -150,6 +150,10 @@ describe('RootLogger', () => {
         );
     });
 
+    it('should return the underlying vendor logger', () => {
+        expect(childLogger().getVendorInstance()).toHaveProperty('log');
+    });
+
     it('should emit a parseable json line including pid and hostname', () => {
         childLogger().info('info message', { key: 'value' });
         expect(JSON.parse(serializedLine())).toEqual(

@@ -1,4 +1,4 @@
-import { transport } from 'winston';
+import { Logger, transport } from 'winston';
 
 export type LoggerLevel = 'error' | 'warn' | 'info' | 'debug';
 
@@ -27,4 +27,5 @@ export interface ChildLogger {
     info(message: string, data: Data): void;
     warn(message: string, data: Data): void;
     error(message: string, error: Error, data: Data): void;
+    getVendorInstance(): Logger;
 }
