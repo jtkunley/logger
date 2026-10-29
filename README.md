@@ -25,22 +25,22 @@ Requires Node 22 or later. Ships with TypeScript types.
 ```ts
 import { logger } from '@jtkunley/logger';
 
-const rootLogger = logger.init('payment-service');
-const log = rootLogger.child('paymentController', 'charge');
+const rootLogger = logger.init('my-service');
+const log = rootLogger.child('userController', 'create');
 
-log.info('Payment charged', { paymentId: 'pay_123', amountCents: 4999 });
+log.info('User created', { userId: 'user_123', plan: 'free' });
 ```
 
 Output (one line, formatted here for readability):
 
 ```json
 {
-    "service": "payment-service",
-    "module": "paymentController",
-    "action": "charge",
+    "service": "my-service",
+    "module": "userController",
+    "action": "create",
     "level": "info",
-    "message": "Payment charged",
-    "data": { "paymentId": "pay_123", "amountCents": 4999 },
+    "message": "User created",
+    "data": { "userId": "user_123", "plan": "free" },
     "timestamp": "2026-10-29T01:44:14.677Z",
     "pid": 42799,
     "hostname": "api-7f9c"
@@ -55,9 +55,9 @@ Call `init` once at startup with your service name. Then create a child logger f
 logical action within a module, so every entry says where it came from:
 
 ```ts
-const rootLogger = logger.init('payment-service', { level: 'debug' });
+const rootLogger = logger.init('my-service', { level: 'debug' });
 
-const log = rootLogger.child('paymentController', 'charge');
+const log = rootLogger.child('userController', 'create');
 ```
 
 ### Logging
@@ -65,10 +65,10 @@ const log = rootLogger.child('paymentController', 'charge');
 Each method takes a message and a `data` object, which is logged under `data`:
 
 ```ts
-log.debug('Fetched payment method', { paymentMethodId });
-log.info('Payment charged', { paymentId });
-log.warn('Charged, but receipt email failed', { paymentId });
-log.error('Failed to charge payment', error, { paymentId });
+log.debug('Validated request body', { userId });
+log.info('User created', { userId });
+log.warn('User created, but welcome email failed', { userId });
+log.error('Failed to create user', error, { userId });
 ```
 
 `error` accepts whatever was caught, so `catch (err)` needs no cast. For an `Error`, its
@@ -115,7 +115,7 @@ The console is always a destination. Add any winston transport alongside it:
 ```ts
 import { transports } from 'winston';
 
-logger.init('payment-service', {
+logger.init('my-service', {
     customTransports: { file: new transports.File({ filename: 'app.log' }) },
 });
 ```
