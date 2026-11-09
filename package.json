@@ -1,14 +1,23 @@
 {
     "name": "@jtkunley/logger",
-    "version": "1.0.2",
-    "description": "Structured JSON logging for Node.js services on Pino: module and action on every line, per-entry context, bounded payloads, and a stderr fallback when a transport fails.",
+    "version": "1.0.3",
+    "description": "Structured JSON logging for Node services on Pino: service, module and action on every line, per-entry context resolvers, bounded serialization, worker-thread transports with stderr fallback, and a flush that waits for writes.",
     "keywords": [
         "logger",
         "logging",
         "pino",
         "structured-logging",
         "json",
-        "node"
+        "ndjson",
+        "node",
+        "nodejs",
+        "typescript",
+        "worker-threads",
+        "pino-transport",
+        "contextual-logging",
+        "safe-serialization",
+        "graceful-shutdown",
+        "observability"
     ],
     "homepage": "https://github.com/jtkunley/logger#readme",
     "bugs": {

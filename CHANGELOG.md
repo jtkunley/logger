@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3 (2026-11-09)
+
+No code changes.
+
+### Package
+
+- **Metadata:** a description that matches what the package guarantees, and keywords for its transports, context, serialization and flush.
+- **README:** an npm version badge.
+
 ## 1.0.2 (2026-11-09)
 
 ### Fixes
