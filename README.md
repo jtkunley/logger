@@ -1,5 +1,6 @@
 # @jtkunley/logger
 
+[![npm](https://img.shields.io/npm/v/@jtkunley/logger)](https://www.npmjs.com/package/@jtkunley/logger)
 [![CI](https://github.com/jtkunley/logger/actions/workflows/ci.yml/badge.svg)](https://github.com/jtkunley/logger/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
