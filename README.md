@@ -3,6 +3,8 @@
 [![npm](https://img.shields.io/npm/v/@jtkunley/logger)](https://www.npmjs.com/package/@jtkunley/logger)
 [![CI](https://github.com/jtkunley/logger/actions/workflows/ci.yml/badge.svg)](https://github.com/jtkunley/logger/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](package.json)
+[![TypeScript](https://img.shields.io/badge/types-TypeScript-3178C6?logo=typescript&logoColor=white)](src/index.ts)
+[![Dependencies](https://img.shields.io/badge/dependencies-1-brightgreen)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Structured JSON logging for Node.js services, on top of [Pino](https://getpino.io). Every line carries the **service, module and action** that wrote it, **context such as a request ID is resolved per entry**, payloads are **bounded so a huge or circular object can't break a log line**, and a **failed transport falls back to stderr** instead of losing logs silently.
