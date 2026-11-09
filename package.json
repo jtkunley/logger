@@ -1,0 +1,74 @@
+{
+    "name": "@jtkunley/logger",
+    "version": "1.0.0",
+    "description": "Structured JSON logging for Node.js services on Pino: module and action on every line, per-entry context, bounded payloads, and a stderr fallback when a transport fails.",
+    "keywords": [
+        "logger",
+        "logging",
+        "pino",
+        "structured-logging",
+        "json",
+        "node"
+    ],
+    "homepage": "https://github.com/jtkunley/logger#readme",
+    "bugs": {
+        "url": "https://github.com/jtkunley/logger/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jtkunley/logger.git"
+    },
+    "license": "MIT",
+    "author": "jtkunley (https://github.com/jtkunley)",
+    "type": "commonjs",
+    "scripts": {
+        "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node scripts/prepare-dist.mjs",
+        "typecheck": "tsc",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "test": "vitest run",
+        "test:unit": "vitest run --project unit",
+        "test:component": "vitest run --project component",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "check": "npm run typecheck && npm run lint && npm run format:check && npm test",
+        "prepublishOnly": "node -e \"console.error('Publish the built package: npm run build && npm publish ./dist'); process.exit(1)\""
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "main": "./src/index.js",
+    "types": "./src/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.d.ts",
+            "default": "./src/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "src",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE"
+    ],
+    "dependencies": {
+        "pino": "^10.4.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^26.6.6",
+        "@vitest/coverage-v8": "^5.1.0",
+        "eslint": "^10.14.0",
+        "globals": "^17.14.0",
+        "prettier": "^3.9.10",
+        "typescript": "~6.0.3",
+        "typescript-eslint": "^8.72.1",
+        "vitest": "^5.1.0"
+    },
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    }
+}
