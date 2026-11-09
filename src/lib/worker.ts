@@ -16,13 +16,19 @@ export interface WorkerOptions {
 
 /** The stream a Pino transport target builds; often a SonicBoom. */
 export interface TargetStream extends EventEmitter {
+    // The stream API, whichever parts the target implements.
     write(line: string): unknown;
     end(): unknown;
     flush?: (callback?: (error?: Error | null) => void) => unknown;
     flushSync?: () => void;
     writableNeedDrain?: boolean;
+
+    // SonicBoom internals, read only to wait for its writes; see `flushStream`.
     minLength?: number;
     _writing?: boolean;
+
+    // Set before each write on targets that read the entry from properties,
+    // as Pino's multistream does.
     [METADATA]?: boolean;
     lastLevel?: number;
     lastTime?: unknown;
@@ -37,7 +43,11 @@ export interface Output {
 
 type TargetBuilder = (options: Record<string, unknown>) => TargetStream | Promise<TargetStream>;
 
-/** Marks streams that read the level and entry of each line from properties, as Pino's multistream sets them. */
+/**
+ * Marks streams that read the level and entry of each line from properties.
+ * Cast because TypeScript only treats `Symbol()` as a `unique symbol`, which a
+ * computed key in `TargetStream` requires.
+ */
 const METADATA: unique symbol = Symbol.for('pino.metadata') as never;
 /** Every line comes from this package's Pino logger, which writes `level` first. */
 const LEVEL = /^\{"level":(\d+)/;
@@ -120,6 +130,7 @@ export class Fanout extends Writable {
         if (line === '') {
             return;
         }
+        // A line without a level is treated as the highest, so it reaches every output.
         const level = Number(LEVEL.exec(line)?.[1] ?? Infinity);
         let entry: Record<string, unknown> | undefined;
         for (const output of this.outputs) {
@@ -140,12 +151,17 @@ export class Fanout extends Writable {
 }
 
 /**
- * Resolves once a stream has finished the writes it was given. SonicBoom, which
- * `pino/file` uses, has a `flush` that does nothing unless `minLength` is set,
- * so its in-flight write is awaited through `drain` instead.
+ * A SonicBoom, as `pino/file` creates, that writes each line straight away.
+ * Its `flush` does nothing, so its in-flight write has to be awaited through
+ * `drain` instead. One with a `minLength` buffers, and its `flush` works.
  */
+function isUnbufferedSonicBoom(stream: TargetStream): boolean {
+    return typeof stream._writing === 'boolean' && (stream.minLength ?? 0) <= 0;
+}
+
+/** Resolves once a stream has finished the writes it was given. */
 export async function flushStream(stream: TargetStream): Promise<void> {
-    if (typeof stream._writing === 'boolean' && !((stream.minLength ?? 0) > 0)) {
+    if (isUnbufferedSonicBoom(stream)) {
         if (stream._writing) {
             await once(stream, 'drain');
         }

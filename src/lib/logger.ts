@@ -13,6 +13,8 @@ type TransportStream = ReturnType<typeof pino.transport> & { readonly destroyed:
 /** The compiled worker, beside this file in the published package. */
 const WORKER = join(__dirname, 'worker.js');
 const STDOUT = 1;
+/** Pino's numeric levels, as written in each entry's `level` field. */
+const LEVELS: Record<LogLevel, number> = { debug: 20, info: 30, warn: 40, error: 50 };
 const FLUSH_TIMEOUT_MS = 10_000;
 const TRANSPORT_FAILED = 'Log transport failed; writing logs to stderr';
 
@@ -48,24 +50,28 @@ export function resolveTarget(target: string): string {
     throw new Error(`Unable to resolve transport target "${target}"`);
 }
 
-/**
- * Creates a root logger for a service, writing JSON lines to stdout and any
- * configured transports from a worker thread.
- */
-export function init(service: string, options: LoggerOptions = {}): RootLogger {
+/** Starts the worker with stdout and the configured transports as its outputs. */
+function startTransport(transports: LoggerOptions['transports'] = []): TransportStream {
     const targets: WorkerTarget[] = [
-        { target: resolveTarget('pino/file'), options: { destination: STDOUT }, level: 20 },
-        ...(options.transports ?? []).map(({ target, options = {}, level = 'debug' }) => ({
+        {
+            target: resolveTarget('pino/file'),
+            options: { destination: STDOUT },
+            level: LEVELS.debug,
+        },
+        ...transports.map(({ target, options = {}, level = 'debug' }) => ({
             target: resolveTarget(target),
             options,
-            level: pino.levels.values[level]!,
+            level: LEVELS[level],
         })),
     ];
-    const transport = pino.transport({
+    return pino.transport({
         target: WORKER,
         options: { targets } satisfies WorkerOptions,
     }) as TransportStream;
+}
 
+/** Writes one diagnostic line to stderr for the first transport error, and ignores the rest. */
+function reportFirstError(transport: TransportStream, service: string): void {
     let reported = false;
     transport.on('error', (error: unknown) => {
         if (reported) {
@@ -76,7 +82,7 @@ export function init(service: string, options: LoggerOptions = {}): RootLogger {
             error instanceof Error ? error : new Error(String(error)),
         );
         const diagnostic = {
-            level: 50,
+            level: LEVELS.error,
             time: Date.now(),
             service,
             msg: TRANSPORT_FAILED,
@@ -84,14 +90,42 @@ export function init(service: string, options: LoggerOptions = {}): RootLogger {
         };
         process.stderr.write(`${JSON.stringify(diagnostic)}\n`);
     });
+}
 
-    const destination = {
+/**
+ * Where Pino writes each line: the transport, or stderr once it is destroyed.
+ * Routed on `destroyed`, not on the error event: thread-stream can emit an
+ * error and keep working, but a destroyed stream drops every write.
+ */
+function fallbackDestination(transport: TransportStream): { write(line: string): boolean } {
+    return {
         write(line: string): boolean {
-            // Routed on `destroyed`, not on the error event: thread-stream can emit an
-            // error and keep working, but a destroyed stream drops every write.
             return transport.destroyed ? process.stderr.write(line) : transport.write(line);
         },
     };
+}
+
+/** Flushes the transport, resolving at once if it is destroyed and after the timeout at the latest. */
+function flushWithTimeout(transport: TransportStream): Promise<void> {
+    if (transport.destroyed) {
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+        const timer = setTimeout(resolve, FLUSH_TIMEOUT_MS);
+        transport.flush(() => {
+            clearTimeout(timer);
+            resolve();
+        });
+    });
+}
+
+/**
+ * Creates a root logger for a service, writing JSON lines to stdout and any
+ * configured transports from a worker thread.
+ */
+export function init(service: string, options: LoggerOptions = {}): RootLogger {
+    const transport = startTransport(options.transports);
+    reportFirstError(transport, service);
 
     const instance = pino(
         {
@@ -102,7 +136,7 @@ export function init(service: string, options: LoggerOptions = {}): RootLogger {
                 err: serializeError,
             },
         },
-        destination,
+        fallbackDestination(transport),
     );
 
     function log(
@@ -132,17 +166,6 @@ export function init(service: string, options: LoggerOptions = {}): RootLogger {
         level(level: LogLevel): void {
             instance.level = level;
         },
-        flush(): Promise<void> {
-            if (transport.destroyed) {
-                return Promise.resolve();
-            }
-            return new Promise((resolve) => {
-                const timer = setTimeout(resolve, FLUSH_TIMEOUT_MS);
-                transport.flush(() => {
-                    clearTimeout(timer);
-                    resolve();
-                });
-            });
-        },
+        flush: () => flushWithTimeout(transport),
     };
 }
