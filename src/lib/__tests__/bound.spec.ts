@@ -92,6 +92,40 @@ describe('boundValue', () => {
             );
         });
 
+        it('lets the marker replace a caller key named "..."', () => {
+            const bounded = boundValue({ '...': 'caller', ...wide(100) }) as Record<
+                string,
+                unknown
+            >;
+
+            expect(bounded['...']).toBe('1 item not stringified');
+            expect(bounded).not.toHaveProperty('key99');
+        });
+
+        it('keeps a caller key named "..." when nothing is omitted', () => {
+            expect(boundValue({ '...': 'caller' })).toEqual({ '...': 'caller' });
+        });
+
+        it('leaves out inherited, non-enumerable and symbol-keyed properties', () => {
+            const value = Object.create({ inherited: 1 }) as Record<string | symbol, unknown>;
+            value['own'] = 2;
+            value[Symbol('symbol')] = 3;
+            Object.defineProperty(value, 'hidden', { value: 4, enumerable: false });
+
+            const bounded = boundValue(value) as Record<string | symbol, unknown>;
+
+            expect(bounded).toEqual({ own: 2 });
+            expect(Object.getOwnPropertySymbols(bounded)).toEqual([]);
+        });
+
+        it('lets non-enumerable and symbol-keyed properties out of the breadth count', () => {
+            const value = wide(100) as Record<string | symbol, unknown>;
+            value[Symbol('symbol')] = 'extra';
+            Object.defineProperty(value, 'hidden', { value: 'extra', enumerable: false });
+
+            expect(boundValue(value)).toEqual(wide(100));
+        });
+
         it('keeps an own __proto__ key as an ordinary property', () => {
             const bounded = boundValue(JSON.parse('{"__proto__":{"polluted":true},"ok":1}'));
 

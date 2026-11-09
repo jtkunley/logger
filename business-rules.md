@@ -1,0 +1,65 @@
+- Assume Pino as the logging implementation. Provide structured logging without requiring callers to use Pino directly.
+- Expose `init(serviceName, options?)` and `configureContext(context)`, both directly and through a `logger` object.
+- Export the public types `LogLevel`, `LogData`, `LogContext`, `TransportOptions`, `LoggerOptions`, `RootLogger`, and `ChildLogger`.
+- `init` accepts a string service name and optional `{ level, transports }`. Default the root level to `info` and additional transports to an empty list.
+- Each initialization creates an independent root with its own service, level, and outputs. Context configuration is shared among roots using the same loaded library instance, without cross-process or cross-instance synchronization.
+- Return a root exposing `child(module, action)`, `level(level)`, and `flush(): Promise<void>`.
+- Return children exposing `debug(message, data)`, `info(message, data)`, `warn(message, data)`, and `error(message, error, data)`. These methods return no value.
+- Require string messages, module names, and action names. Require `data: Record<string, unknown>` and accept `unknown` for the caught error argument. Invalid argument types are outside the typed contract.
+- Support the public levels `debug`, `info`, `warn`, and `error`, with numeric output values 20, 30, 40, and 50 respectively.
+- Emit one newline-terminated JSON record per accepted logging call. Embedded newlines and other special characters must be JSON-escaped so they do not split an entry into multiple records.
+- Ordinary entries contain `level`, numeric epoch-millisecond `time`, `service`, process `pid`, host `hostname`, `module`, `action`, literal `msg`, and serialized `data`.
+- Keep caller data under `data`; do not promote its properties into top-level fields or let them replace entry metadata.
+- Preserve messages literally, including `%s` and other formatting tokens. Do not perform placeholder substitution.
+- Apply severity thresholds inclusively: `error` emits errors; `warn` emits warnings and errors; `info` adds information; `debug` emits all supported severities.
+- Changing a root’s level affects subsequent calls from existing and newly created children, without changing another root’s level.
+- Suppressed calls must not read payload properties, serialize errors, or invoke context resolvers.
+- Resolve context and serialize accepted entries during the logging call. Mutating supplied values afterward must not alter an entry already submitted for output.
+- Preserve accepted-entry order within each healthy output for a root. Do not duplicate entries. No ordering guarantee is required between independent roots.
+- `configureContext` accepts string-keyed static values and synchronous zero-argument resolver functions. Resolvers are supplied by the caller; the package does not create or manage request-context storage.
+- Add configured context at the top level of every ordinary emitted entry, across all supported severities and roots sharing that configuration.
+- Apply context configured before initialization or after child creation to subsequent entries. Configuration changes must not modify previously submitted entries.
+- Merge successive context configurations. Replace an existing key when reconfigured and remove it when explicitly set to `undefined`.
+- Invoke each configured resolver separately for each emitted entry, in the caller’s current execution context. Do not cache its result between entries.
+- Preserve defined falsy context values, including `0`, `false`, `''`, and `null`. Omit static `undefined` values and fields whose resolver returns `undefined`.
+- If a resolver throws, omit only that field and continue logging other fields. Do not propagate the resolver exception.
+- Context resolvers are synchronous and their results are not awaited. Async resolver completion is outside the supported contract.
+- Ignore context keys named `level`, `time`, `pid`, `hostname`, `service`, `module`, `action`, `msg`, `data`, or `err`; they must neither replace nor duplicate built-in fields.
+- Preserve an own `__proto__` key as ordinary data in payloads and context without changing object prototypes.
+- Apply bounded serialization independently to `data`, each resolved context value, and the serialized error representation.
+- Count each bounded value itself as depth 1. After any applicable `toJSON` conversion, replace objects at depth 10 with `[Object]` and arrays at that depth with `[Array]`. Retain primitive values at the boundary.
+- As an exact depth example, `{ leaf: 'bottom' }` wrapped eight times retains `bottom`; wrapped nine times, its deepest object becomes `[Object]`. An array placed at depth 10 becomes `[Array]`.
+- Retain up to 100 items per array. Append `... 1 item not stringified` or `... N items not stringified` when items are omitted, using the exact omitted-item count.
+- Retain up to 100 own enumerable string keys per object, in JavaScript enumeration order. Add a `...` property containing `1 item not stringified` or `N items not stringified` when keys are omitted. This marker takes precedence over a caller property with the same name.
+- Apply the same value rules recursively to retained array items and object properties. Inherited, non-enumerable, and symbol-keyed properties are not included.
+- Replace ancestor cycles with `[Circular]`, including cycles through arrays. Serialize a shared object independently in separate branches when it is not an ancestor cycle.
+- Serialize BigInts as exact decimal strings without precision loss.
+- Honor callable `toJSON` methods and apply value bounds to their results. Serialize ordinary dates as ISO strings; other object types without custom JSON conversion contribute their enumerable properties.
+- Follow ordinary JSON behavior for remaining values: omit object properties containing `undefined`, functions, or symbols; represent those array positions and sparse slots as `null`; represent non-finite numbers as `null`.
+- If reading or converting a bounded value throws, replace that entire bounded value with `[Unserializable]`. A failure in one context value must not replace unrelated context fields.
+- Preserve caller-owned data objects and arrays rather than replacing or truncating their contents. Getters and `toJSON` methods may execute and retain their own side effects.
+- Impose no string-length cap, aggregate entry-byte cap, aggregate node-count budget, or total context-field cap. Depth and breadth limits do not guarantee a fixed execution time, particularly when caller callbacks are slow.
+- Place caught values under `err`. For ordinary `Error` objects, include Pino’s standard `type`, `message`, and `stack` representation plus bounded enumerable custom properties.
+- Include error cause chains using Pino’s standard error serialization. For an outer error `oops` caused by `root cause`, preserve `oops: root cause` in the message and the cause in the stack.
+- Preserve serializable non-Error caught values in their corresponding JSON form, subject to bounds. Omit `err` when the caught value is `undefined`.
+- If error serialization itself throws, emit `err: '[Unserializable]'` rather than propagating that serialization exception.
+- Always include stdout as an output destination. Additional configured transports supplement stdout rather than replacing it.
+- Accept Pino-compatible transport targets with a string `target`, optional options object, and optional severity threshold. Transport options must be suitable for transfer to a worker.
+- Support transport targets supplied as package names, absolute paths, or `file://` URLs. Resolve package targets from the logger package or the application’s working directory; reject an unresolvable package target during initialization.
+- Support compatible CommonJS and ES-module transport exports, including asynchronous transport initialization. Loading or initialization failures discovered in the worker follow transport-failure handling.
+- Perform normal transport output in a worker. Context resolution, payload preparation, and JSON serialization may run on the calling thread; no universal non-blocking guarantee applies to them or to stderr fallback.
+- Default each output threshold to `debug`. An explicit transport threshold may narrow the root’s eligible entries but cannot restore entries suppressed by the root.
+- Apply runtime root-level changes to all outputs while retaining explicit transport thresholds. Each eligible output receives the same serialized entry.
+- While the root’s transport remains usable, write ordinary entries through it rather than duplicating them to stderr.
+- On the first transport error for a root, emit one newline-terminated stderr diagnostic with `level: 50`, millisecond `time`, `service`, message `Log transport failed; writing logs to stderr`, and the reported error’s `type`, `message`, and `stack`. Do not repeat it for later transport error events.
+- The transport diagnostic need not contain ordinary entry fields such as `module`, `action`, `data`, or configured context.
+- Once the root’s transport is destroyed, route subsequent accepted entries to stderr, preserving their ordinary entry shape and root-level filtering. An error event alone does not permanently redirect an otherwise usable transport.
+- Do not promise isolation between a root’s output targets: failure of their shared transport may affect all of them. Failure of one root must not change another root’s configuration.
+- Do not restart failed transports or replay entries previously buffered in them. Entries already lost during failure are not recoverable through fallback.
+- `flush()` waits for entries submitted before that call to pass through healthy eligible outputs and their supported completion mechanisms. For file outputs, those entries must be readable after normal completion without relying on process exit.
+- Repeated or concurrent flush calls must be supported. Flushing must not close the root or prevent subsequent logging.
+- Resolve flush normally when output completion is reported, or after a 10,000-millisecond timeout if completion is not reported. Timeout execution remains subject to event-loop availability.
+- Do not reject flush merely because its completion callback reports an error. If the transport is already destroyed, resolve immediately without waiting for stderr to drain.
+- Return no delivery-status value from flush. Resolution does not distinguish normal completion, callback error, timeout, or destroyed-transport completion.
+- Do not interpret flush as a guarantee of filesystem synchronization, remote acknowledgement, or survival of abrupt process termination. Entries logged after the flush call are outside that call’s completion guarantee.
+- Contain resolver and serialization failures and handle reported transport failures as specified. Universal exception suppression for invalid API calls, failing stderr writes, or arbitrary synchronous output-stream exceptions is outside the contract.

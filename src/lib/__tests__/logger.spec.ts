@@ -1,7 +1,9 @@
 import { EventEmitter } from 'events';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs';
+import { AsyncLocalStorage } from 'async_hooks';
 import { hostname, tmpdir } from 'os';
 import { dirname, join } from 'path';
+import { runInNewContext } from 'vm';
 import pino from 'pino';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { init, resolveTarget } from '../logger';
@@ -209,6 +211,57 @@ describe('a child logger', () => {
         });
     });
 
+    it('escapes newlines in the message and data, keeping each entry on one line', () => {
+        const { log, transport } = setup();
+
+        log.info('line one\nline two', { text: 'a\nb\r\n"quoted"\u2028' });
+
+        expect(transport.lines).toHaveLength(1);
+        expect(transport.lines[0]!.slice(0, -1)).not.toMatch(/[\n\r]/);
+        expect(transport.entries()[0]).toMatchObject({
+            msg: 'line one\nline two',
+            data: { text: 'a\nb\r\n"quoted"\u2028' },
+        });
+    });
+
+    it('serializes data during the call, so later changes do not alter the entry', () => {
+        const { log, transport } = setup();
+        const data = { status: 'pending', items: [1] };
+
+        log.info('m', data);
+        data.status = 'done';
+        data.items.push(2);
+
+        expect(transport.entries()[0]!['data']).toEqual({ status: 'pending', items: [1] });
+    });
+
+    it('follows JSON for undefined, functions, symbols, sparse slots and non-finite numbers', () => {
+        const { log, transport } = setup();
+        // eslint-disable-next-line no-sparse-arrays
+        const sparse = [1, , 3];
+
+        log.info('m', {
+            kept: 1,
+            missing: undefined,
+            fn: () => 1,
+            sym: Symbol('s'),
+            list: [undefined, () => 1, Symbol('s'), NaN],
+            sparse,
+            nan: NaN,
+            inf: Infinity,
+            negInf: -Infinity,
+        });
+
+        expect(transport.entries()[0]!['data']).toEqual({
+            kept: 1,
+            list: [null, null, null, null],
+            sparse: [1, null, 3],
+            nan: null,
+            inf: null,
+            negInf: null,
+        });
+    });
+
     it('keeps messages literally, without placeholder substitution', () => {
         const { log, transport } = setup();
 
@@ -277,6 +330,18 @@ describe('levels', () => {
         log.warn('suppressed', {});
 
         expect(transport.entries().map((entry) => entry['msg'])).toEqual(['after']);
+    });
+
+    it('changes only the level of the root it is called on', () => {
+        const first = setup();
+        const second = setup();
+
+        first.root.level('debug');
+        first.log.debug('first', {});
+        second.log.debug('second', {});
+
+        expect(first.transport.entries().map((entry) => entry['msg'])).toEqual(['first']);
+        expect(second.transport.entries()).toEqual([]);
     });
 
     it('does not read data for suppressed entries', () => {
@@ -356,6 +421,53 @@ describe('context', () => {
         expect(transport.entries().map((entry) => entry['requestId'])).toEqual(['a', 'b']);
     });
 
+    it('calls resolvers in the caller’s execution context', async () => {
+        const { log, transport } = setup();
+        const storage = new AsyncLocalStorage<string>();
+        configureContext({ requestId: () => storage.getStore() });
+
+        await Promise.all(
+            ['r1', 'r2'].map((id) =>
+                storage.run(id, async () => {
+                    await Promise.resolve();
+                    log.info(id, {});
+                }),
+            ),
+        );
+        log.info('outside', {});
+
+        expect(transport.entries().map((entry) => [entry['msg'], entry['requestId']])).toEqual([
+            ['r1', 'r1'],
+            ['r2', 'r2'],
+            ['outside', undefined],
+        ]);
+    });
+
+    it('keeps other fields when one resolver throws or one value cannot be read', () => {
+        const { log, transport } = setup();
+        configureContext({
+            failing: () => {
+                throw new Error('resolver');
+            },
+            unreadable: {
+                get broken(): never {
+                    throw new Error('getter');
+                },
+            },
+            region: 'eu',
+        });
+
+        log.info('m', { a: 1 });
+
+        const [entry] = transport.entries();
+        expect(entry).not.toHaveProperty('failing');
+        expect(entry).toMatchObject({
+            unreadable: '[Unserializable]',
+            region: 'eu',
+            data: { a: 1 },
+        });
+    });
+
     it('neither overwrites nor repeats built-in fields', () => {
         const { log, transport } = setup();
         configureContext({ service: 'spoofed', msg: 'spoofed', module: 'spoofed', err: 'spoofed' });
@@ -415,11 +527,30 @@ describe('error entries', () => {
 
         log.error('string', 'plain string', {});
         log.error('object', { reason: 'denied', big: 1n }, {});
+        log.error('error-like', { message: 'denied', code: 403 }, {});
+        log.error('number', 42, {});
+        log.error('null', null, {});
 
         expect(transport.entries().map((entry) => entry['err'])).toEqual([
             'plain string',
             { reason: 'denied', big: '1' },
+            { message: 'denied', code: 403 },
+            42,
+            null,
         ]);
+    });
+
+    it('logs an Error from another realm with Pino’s error serializer', () => {
+        const { log, transport } = setup();
+        const foreign = runInNewContext('new RangeError("elsewhere")') as unknown;
+
+        log.error('failed', foreign, {});
+
+        expect(transport.entries()[0]!['err']).toMatchObject({
+            type: 'RangeError',
+            message: 'elsewhere',
+            stack: expect.stringContaining('RangeError: elsewhere'),
+        });
     });
 
     it('logs an error that cannot be serialized as [Unserializable], without throwing', () => {
@@ -521,6 +652,19 @@ describe('output', () => {
 
         expect(pino.transport).toHaveBeenCalledTimes(1);
     });
+
+    it('leaves other roots writing to their own transports when one fails', () => {
+        const failed = setup({ level: 'debug' }, 'failed');
+        const healthy = setup({}, 'healthy');
+
+        failed.transport.emit('error', new Error('dead'));
+        failed.transport.destroyed = true;
+        healthy.log.debug('suppressed', {});
+        healthy.log.info('still here', {});
+
+        expect(healthy.transport.entries().map((entry) => entry['msg'])).toEqual(['still here']);
+        expect(stderr).toHaveLength(1);
+    });
 });
 
 describe('flush', () => {
@@ -573,5 +717,58 @@ describe('flush', () => {
 
         await expect(root.flush()).resolves.toBeUndefined();
         expect(transport.flush).not.toHaveBeenCalled();
+    });
+
+    it('resolves when the transport is destroyed while flushing', async () => {
+        vi.useFakeTimers();
+        const { root, transport } = setup();
+
+        const flushed = root.flush();
+        transport.destroyed = true;
+        transport.emit('error', new Error('worker failed to start'));
+
+        await expect(flushed).resolves.toBeUndefined();
+        expect(vi.getTimerCount()).toBe(0);
+        expect(transport.listenerCount('error')).toBe(1);
+        expect(transport.listenerCount('close')).toBe(0);
+    });
+
+    it('resolves when the transport closes while flushing', async () => {
+        const { root, transport } = setup();
+
+        const flushed = root.flush();
+        transport.emit('close');
+
+        await expect(flushed).resolves.toBeUndefined();
+    });
+
+    it('keeps waiting after an error that leaves the transport usable', async () => {
+        const { root, transport } = setup();
+
+        const flushed = root.flush();
+        transport.emit('error', new Error('transient'));
+
+        expect(await isSettled(flushed)).toBe(false);
+        transport.flush.mock.calls[0]![0]();
+        await expect(flushed).resolves.toBeUndefined();
+    });
+
+    it('supports concurrent and repeated flushes, and logging afterwards', async () => {
+        const { root, transport, log } = setup();
+
+        log.info('before', {});
+        const first = root.flush();
+        const second = root.flush();
+        for (const [callback] of transport.flush.mock.calls) {
+            callback();
+        }
+        await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+
+        log.info('after', {});
+        const third = root.flush();
+        transport.flush.mock.calls[2]![0]();
+        await expect(third).resolves.toBeUndefined();
+
+        expect(transport.entries().map((entry) => entry['msg'])).toEqual(['before', 'after']);
     });
 });

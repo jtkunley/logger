@@ -20,7 +20,7 @@ export interface TransportOptions {
      * package or the working directory, an absolute path or a `file://` URL.
      */
     target: string;
-    /** Passed to the target as they are. */
+    /** Passed to the target as they are, copied to the worker thread, so they must be structured-cloneable. */
     options?: Record<string, unknown>;
     /** Default `debug`: the target receives every entry the root emits. */
     level?: LogLevel;
@@ -52,8 +52,8 @@ export interface RootLogger {
     level(level: LogLevel): void;
     /**
      * Resolves once every entry logged so far has been written by stdout and
-     * each transport, after 10 seconds without an answer, or at once if the
-     * transport has failed. It never rejects.
+     * each transport, after 10 seconds without an answer, or as soon as the
+     * transport fails. It never rejects.
      */
     flush(): Promise<void>;
 }

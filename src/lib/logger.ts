@@ -1,6 +1,7 @@
 import { createRequire } from 'module';
 import { hostname } from 'os';
 import { isAbsolute, join } from 'path';
+import { types } from 'util';
 import pino from 'pino';
 import { boundValue, UNSERIALIZABLE } from './bound';
 import { resolveContext } from './context';
@@ -19,13 +20,18 @@ const FLUSH_TIMEOUT_MS = 10_000;
 const TRANSPORT_FAILED = 'Log transport failed; writing logs to stderr';
 
 /**
- * Pino's error serializer, then bounding. The serializer reads every enumerable
- * property and tags the error, so a throwing getter or a frozen error would
- * otherwise throw into the caller's `catch` block.
+ * Pino's error serializer for an `Error`, then bounding. Anything else keeps its
+ * JSON form: Pino's serializer would also rewrite any object with a string
+ * `message`. The serializer reads every enumerable property and tags the
+ * error, so a throwing getter or a frozen error would otherwise throw into the
+ * caller's `catch` block.
  */
 function serializeError(error: unknown): unknown {
+    if (!(error instanceof Error || types.isNativeError(error))) {
+        return boundValue(error);
+    }
     try {
-        return boundValue(pino.stdSerializers.err(error as Error));
+        return boundValue(pino.stdSerializers.err(error));
     } catch {
         return UNSERIALIZABLE;
     }
@@ -105,17 +111,32 @@ function fallbackDestination(transport: TransportStream): { write(line: string):
     };
 }
 
-/** Flushes the transport, resolving at once if it is destroyed and after the timeout at the latest. */
+/**
+ * Flushes the transport, resolving at once if it is destroyed and after the
+ * timeout at the latest. Also resolves if the transport is destroyed while
+ * flushing: a flush requested before the worker is ready is only answered once
+ * it is, which a worker that fails to start never is.
+ */
 function flushWithTimeout(transport: TransportStream): Promise<void> {
     if (transport.destroyed) {
         return Promise.resolve();
     }
     return new Promise((resolve) => {
-        const timer = setTimeout(resolve, FLUSH_TIMEOUT_MS);
-        transport.flush(() => {
+        const done = () => {
             clearTimeout(timer);
+            transport.off('error', onError);
+            transport.off('close', done);
             resolve();
-        });
+        };
+        const onError = () => {
+            if (transport.destroyed) {
+                done();
+            }
+        };
+        const timer = setTimeout(done, FLUSH_TIMEOUT_MS);
+        transport.on('error', onError);
+        transport.on('close', done);
+        transport.flush(done);
     });
 }
 

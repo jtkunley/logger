@@ -139,6 +139,95 @@ describe('the installed logger on real Pino transports', () => {
         }
     });
 
+    it('loads an ES module target that initializes asynchronously', async () => {
+        const dir = workDir();
+        const target = join(dir, 'async-target.mjs');
+        const file = join(dir, 'esm.log');
+        writeFileSync(
+            target,
+            `
+            import { createRequire } from 'node:module';
+            import { setTimeout } from 'node:timers/promises';
+            export default async function (options) {
+                await setTimeout(50);
+                return createRequire(import.meta.url)('pino/file')(options);
+            }
+            `,
+        );
+
+        await runConsumer(
+            `
+            const { copyFileSync } = require('fs');
+            const root = logger.init('orders', {
+                transports: [{ target: args[0], options: { destination: args[1] } }],
+            });
+            root.child('checkout', 'submit').info('through esm', {});
+            await root.flush();
+            copyFileSync(args[1], args[1] + '.flushed');
+            `,
+            [target, file],
+        );
+
+        expect(messages(readEntries(`${file}.flushed`))).toEqual(['through esm']);
+    });
+
+    it('supports concurrent flushes and keeps logging after a flush', async () => {
+        const file = join(workDir(), 'app.log');
+
+        await runConsumer(
+            `
+            const { copyFileSync } = require('fs');
+            const root = logger.init('orders', {
+                transports: [{ target: 'pino/file', options: { destination: args[0] } }],
+            });
+            const log = root.child('checkout', 'submit');
+            log.info('first', {});
+            await Promise.all([root.flush(), root.flush()]);
+            copyFileSync(args[0], args[0] + '.first');
+            log.info('second', {});
+            await root.flush();
+            copyFileSync(args[0], args[0] + '.second');
+            `,
+            [file],
+        );
+
+        expect(messages(readEntries(`${file}.first`))).toEqual(['first']);
+        expect(messages(readEntries(`${file}.second`))).toEqual(['first', 'second']);
+    });
+
+    it('treats a target that fails to initialize as a failed transport', async () => {
+        const target = join(workDir(), 'failing-init.js');
+        writeFileSync(target, `module.exports = async () => { throw new Error('init failed'); };`);
+
+        // A flush requested while the worker starts must not wait out the
+        // 10 second timeout once the worker has failed.
+        const { stdout, stderr } = await runConsumer(
+            `
+            const root = logger.init('payments', { transports: [{ target: args[0] }] });
+            const log = root.child('ledger', 'post');
+            log.info('before the failure', {});
+            const started = Date.now();
+            await root.flush();
+            console.log(JSON.stringify({ flushMs: Date.now() - started }));
+            log.info('after the failure', {});
+            await root.flush();
+            `,
+            [target],
+        );
+
+        const [{ flushMs }] = stdout.filter((line) => 'flushMs' in line) as [{ flushMs: number }];
+        expect(flushMs).toBeLessThan(5_000);
+        expect(stderr).toEqual([
+            expect.objectContaining({
+                level: 50,
+                service: 'payments',
+                msg: 'Log transport failed; writing logs to stderr',
+                err: expect.objectContaining({ type: 'Error', message: 'init failed' }),
+            }),
+            expect.objectContaining({ level: 30, msg: 'after the failure' }),
+        ]);
+    });
+
     it('reports a failed transport once and falls back to stderr', async () => {
         const dir = workDir();
         const crashingTarget = join(dir, 'crashing-target.js');

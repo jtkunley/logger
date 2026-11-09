@@ -102,11 +102,11 @@ const root = logger.init('orders', {
 });
 ```
 
-Any Pino transport target works, and its `options` are passed through. A `target` is `pino/file`, an absolute path, a `file://` URL, or a package name, resolved from this package and then from the working directory; a package such as `pino-pretty` must be installed by the application. A transport without a `level` receives everything the root emits; one with a `level` receives only entries at or above it, and can't receive anything the root suppresses. Stdout is always included and receives everything the root emits.
+Any Pino transport target works, and its `options` are passed through. The options are copied to the worker thread, so they must be structured-cloneable: plain data, not functions, streams or class instances that depend on their prototype. A target may export its builder as a CommonJS function, an ES-module default export, or a transpiled `default`, and the builder may be `async`. A `target` is `pino/file`, an absolute path, a `file://` URL, or a package name, resolved from this package and then from the working directory; a package such as `pino-pretty` must be installed by the application. A transport without a `level` receives everything the root emits; one with a `level` receives only entries at or above it, and can't receive anything the root suppresses. Stdout is always included and receives everything the root emits.
 
 Stdout and the transports of one root share one worker thread, and each `init` starts another, so create roots once rather than per request.
 
-If the worker fails, for example because a target throws, the first error writes one diagnostic line to stderr:
+If the worker fails, for example because a target can't be loaded, throws while it starts, or throws later, the first error writes one diagnostic line to stderr:
 
 ```json
 {"level":50,"time":1767225600000,"service":"orders","msg":"Log transport failed; writing logs to stderr","err":{"type":"Error","message":"…","stack":"…"}}
@@ -122,7 +122,7 @@ process.once('SIGTERM', () => {
 });
 ```
 
-`flush()` resolves once every entry logged so far has been written by stdout and each transport, after 10 seconds without an answer, or at once if the transport has already failed. It never rejects, and does not say which of these happened. Each root flushes only its own outputs.
+`flush()` resolves once every entry logged so far has been written by stdout and each transport, after 10 seconds without an answer, or as soon as the transport fails. It never rejects, and does not say which of these happened. Each root flushes only its own outputs. Flushing doesn't close anything: calls may overlap or repeat, and logging carries on afterwards. Entries logged after a call are not covered by it, and a resolved flush doesn't mean the data has been synced to disk.
 
 Pino's own multi-target worker acknowledges a flush as soon as it has received the entries, before they are written. This package runs its own worker instead: it hands each entry to the outputs as it arrives, then waits for each output to finish. A file or stdout output (`pino/file`, or any SonicBoom) is awaited until its last write completes; another output is awaited through its `flush` or `flushSync` method, or its `drain` event, if it has one.
 
@@ -147,7 +147,7 @@ Context fields sit beside these at the top level.
 
 ### Errors
 
-`err` uses Pino's error serializer, then the bounds below: an `Error` becomes `type`, `message` and `stack`, with its cause chain in both (`oops: root cause`, `caused by: Error: root cause`) and its enumerable properties kept. Pino treats any value with a string `message` as an error, so `{ message: 'denied', code: 403 }` becomes `{"type":"Object","message":"denied","stack":"","code":403}`. Anything else, such as a string or `{ reason: 'denied' }`, is logged as it is. An error that can't be serialized, such as a frozen one, is logged as `[Unserializable]`.
+`err` uses Pino's error serializer, then the bounds below: an `Error` becomes `type`, `message` and `stack`, with its cause chain in both (`oops: root cause`, `caused by: Error: root cause`) and its enumerable properties kept. Any other value, such as a string, `{ reason: 'denied' }` or `{ message: 'denied', code: 403 }`, is logged as its JSON form, within the same bounds. An error that can't be serialized, such as a frozen one, is logged as `[Unserializable]`.
 
 Pass errors as the `error` argument rather than inside `data`: there, an `Error` logs as `{}`, since its `message` and `stack` aren't enumerable.
 
@@ -221,7 +221,7 @@ src/
 test/component/            behaviour tests against the packed package and real Pino transports
 ```
 
-[`logger-acceptance-criteria.md`](https://github.com/jtkunley/logger/blob/main/logger-acceptance-criteria.md) lists the behaviour this package implements, criterion by criterion.
+[`business-rules.md`](https://github.com/jtkunley/logger/blob/main/business-rules.md) lists the behaviour this package implements, rule by rule.
 
 ### Publishing
 
