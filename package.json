@@ -1,6 +1,6 @@
 {
     "name": "@jtkunley/logger",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Structured JSON logging for Node.js services on Pino: module and action on every line, per-entry context, bounded payloads, and a stderr fallback when a transport fails.",
     "keywords": [
         "logger",
