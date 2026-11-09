@@ -38,7 +38,8 @@ export async function runConsumer(body: string, args: string[] = []): Promise<Co
     );
     const { stdout, stderr } = await execFileAsync(process.execPath, [script, ...args], {
         cwd: consumerDir,
-        timeout: 20_000,
+        // Below the component test timeout, so a hung script is killed before the test gives up.
+        timeout: 12_000,
     });
     return { stdout: parseLines(stdout), stderr: parseLines(stderr) };
 }

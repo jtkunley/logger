@@ -48,7 +48,7 @@ describe('boundValue', () => {
         });
 
         it('keeps primitives at depth 10', () => {
-            expect(descend(boundValue(nested(8, 42n)), 8)).toEqual({ leaf: '42' });
+            expect(descend(boundValue(nested(8, 42)), 8)).toEqual({ leaf: 42 });
         });
     });
 
@@ -176,17 +176,21 @@ describe('boundValue', () => {
 
     describe('input', () => {
         it('leaves the caller’s objects and arrays unchanged', () => {
-            const list = range(101);
-            const value: Record<string, unknown> = { big: 1n, list, deep: nested(9) };
+            const value: Record<string, unknown> = {
+                big: 1n,
+                list: range(101),
+                wide: Object.fromEntries(range(101).map((i) => [`key${i}`, i])),
+                deep: nested(9),
+                at: new Date('2026-01-01T00:00:00.000Z'),
+            };
             value['self'] = value;
-            const snapshot = { ...value };
+            const before = structuredClone(value);
 
             boundValue(value);
 
-            expect(value).toEqual(snapshot);
+            expect(value).toEqual(before);
             expect(value['self']).toBe(value);
-            expect(list).toHaveLength(101);
-            expect(JSON.stringify(nested(9))).toContain('bottom');
+            expect(value['at']).toBeInstanceOf(Date);
         });
 
         it('reads getters and calls toJSON, with whatever side effects they have', () => {

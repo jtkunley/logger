@@ -20,7 +20,7 @@ const configured = new Map<string, unknown>();
 
 /**
  * Merges fields into the context added to every entry. A function is called
- * for each entry; a key set to `undefined` is removed.
+ * for each entry; a key set to `undefined` is removed; reserved keys are ignored.
  */
 export function configureContext(context: LogContext): void {
     for (const [key, value] of Object.entries(context)) {

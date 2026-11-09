@@ -3,7 +3,7 @@ import { init } from './lib/logger';
 
 export { configureContext, init };
 
-/** `logger.init(service, options)` and `logger.configureContext(context)`. */
+/** Both functions under one name, for `import { logger } from '@jtkunley/logger'`. */
 export const logger = { init, configureContext };
 
 export type {

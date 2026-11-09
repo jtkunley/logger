@@ -7,13 +7,16 @@ import { readEntries, runConsumer, workDir } from './installed';
 const messages = (entries: Record<string, unknown>[]) => entries.map((entry) => entry['msg']);
 
 describe('the installed logger on real Pino transports', () => {
-    it('writes every severity to stdout and to file transports, filtered by level', async () => {
+    it('has written every severity to stdout and to file transports, filtered by level, once flush resolves', async () => {
         const dir = workDir();
         const all = join(dir, 'all.log');
         const errors = join(dir, 'errors.log');
 
+        // The files are copied as soon as flush resolves, before the exit hook
+        // could flush them, so the copies show what flush itself waited for.
         const { stdout } = await runConsumer(
             `
+            const { copyFileSync } = require('fs');
             const root = logger.init('orders', {
                 level: 'debug',
                 transports: [
@@ -27,13 +30,15 @@ describe('the installed logger on real Pino transports', () => {
             log.warn('warn', {});
             log.error('error', new Error('boom'), { orderId: 7 });
             await root.flush();
+            copyFileSync(args[0], args[0] + '.flushed');
+            copyFileSync(args[1], args[1] + '.flushed');
             `,
             [all, errors],
         );
 
         expect(messages(stdout)).toEqual(['debug', 'info', 'warn', 'error']);
-        expect(messages(readEntries(all))).toEqual(['debug', 'info', 'warn', 'error']);
-        expect(readEntries(errors)).toEqual([
+        expect(messages(readEntries(`${all}.flushed`))).toEqual(['debug', 'info', 'warn', 'error']);
+        expect(readEntries(`${errors}.flushed`)).toEqual([
             {
                 level: 50,
                 time: expect.any(Number),
@@ -126,13 +131,23 @@ describe('the installed logger on real Pino transports', () => {
             `,
         );
 
+        // thread-stream marks the stream destroyed before emitting the error, so
+        // once the diagnostic is written the next entry must go to stderr.
         const { stderr } = await runConsumer(
             `
+            const reported = new Promise((resolve) => {
+                const write = process.stderr.write.bind(process.stderr);
+                process.stderr.write = (chunk, ...rest) => {
+                    const written = write(chunk, ...rest);
+                    if (String(chunk).includes('Log transport failed')) resolve();
+                    return written;
+                };
+            });
             const root = logger.init('payments', { transports: [{ target: args[0] }] });
             const log = root.child('ledger', 'post');
             log.info('crashes the transport', {});
             await root.flush();
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            await reported;
             log.info('after the failure', { attempt: 2 });
             await root.flush();
             `,

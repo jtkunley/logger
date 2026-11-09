@@ -15,8 +15,11 @@ Structured JSON logging for Node.js services, on top of [Pino](https://getpino.i
   - [Transports](#transports)
   - [Flushing on shutdown](#flushing-on-shutdown)
 - [Log entries](#log-entries)
+  - [Errors](#errors)
+  - [Bounded values](#bounded-values)
 - [API](#api)
 - [Development](#development)
+  - [Publishing](#publishing)
 - [License](#license)
 
 ## Design decisions
@@ -25,9 +28,10 @@ Structured JSON logging for Node.js services, on top of [Pino](https://getpino.i
 - **Context is resolved, not stored.** `configureContext` takes values or functions. Functions run for each entry, so a request ID from an `AsyncLocalStorage` is current on every line. The logger never creates a context store of its own.
 - **Suppressed entries cost nothing.** Below the root's level, data is not read and context functions are not called.
 - **Payloads are bounded, inputs untouched.** `data`, context values and errors are copied with limits on depth and breadth, cycles marked and BigInts turned into strings. A value that throws while being read becomes `[Unserializable]` rather than an exception in the caller.
+- **I/O off the main thread.** Stdout and every transport run in Pino's worker thread; the calling thread only prepares and serializes each line.
 - **A failed transport is reported, not hidden.** The first transport error writes one diagnostic to stderr, and once the transport is destroyed, entries go to stderr too.
 - **Shutdown can't hang.** `flush()` never rejects and gives up after 10 seconds.
-- **Tested the way it runs.** Unit tests hold coverage at 100%, enforced in CI. Component tests build the package as published, install it beside the real Pino, and check stdout, stderr and log files from separate processes.
+- **Tested the way it runs.** Unit tests hold coverage at 100%, enforced in CI. Component tests build and pack the package as published, install the tarball beside the real Pino, and check stdout, stderr and log files from separate processes.
 
 ## Install
 
@@ -35,9 +39,11 @@ Structured JSON logging for Node.js services, on top of [Pino](https://getpino.i
 npm i @jtkunley/logger
 ```
 
-Requires Node.js 22 or later.
+Requires Node.js 22 or later. The package is CommonJS with TypeScript types, and works with both `require` and `import`.
 
 ## Usage
+
+Create one root logger per service, at startup, and a child for each module and action:
 
 ```ts
 import { logger } from '@jtkunley/logger';
@@ -45,19 +51,21 @@ import { logger } from '@jtkunley/logger';
 const root = logger.init('orders', { level: 'info' });
 const log = root.child('checkout', 'submit');
 
-log.info('order placed', { orderId: 42 });
-log.debug('basket contents', { items }); // suppressed at info
+export async function submit(orderId: number, items: string[]): Promise<void> {
+  log.info('order placed', { orderId });
+  log.debug('basket contents', { items }); // suppressed at info
 
-try {
-  await charge(order);
-} catch (err) {
-  log.error('charge failed', err, { orderId: 42 }); // err is unknown; no cast needed
+  try {
+    await chargeCard(orderId);
+  } catch (err) {
+    log.error('charge failed', err, { orderId }); // err is unknown; no cast needed
+  }
 }
 
 root.level('debug'); // applies to existing children too
 ```
 
-`data` is required, so every call site decides what it logs; pass `{}` when there is nothing to add. Messages are logged as they are, without `%s` substitution.
+`data` is required, so every call site decides what it logs; pass `{}` when there is nothing to add. It is typed `Record<string, unknown>`, which an `interface` type without an index signature doesn't satisfy, so wrap such a value: `{ order }`. Messages are logged as they are, without `%s` substitution.
 
 ### Context
 
@@ -94,31 +102,32 @@ const root = logger.init('orders', {
 });
 ```
 
-Any Pino transport target works, and its `options` are passed through. A transport without a `level` receives everything the root emits; one with a `level` receives only entries at or above it, and can't receive anything the root suppresses.
+Any Pino transport target works, and its `options` are passed through; a target package such as `pino-pretty` must be installed by the application. A transport without a `level` receives everything the root emits; one with a `level` receives only entries at or above it, and can't receive anything the root suppresses. Stdout is always included and receives everything the root emits.
 
-If a transport fails, the first error writes one diagnostic line to stderr:
+Stdout and the transports of one root share one worker thread, and each `init` starts another, so create roots once rather than per request.
+
+If the worker fails, for example because a target throws, the first error writes one diagnostic line to stderr:
 
 ```json
 {"level":50,"time":1767225600000,"service":"orders","msg":"Log transport failed; writing logs to stderr","err":{"type":"Error","message":"…","stack":"…"}}
 ```
 
-Once the transport stream is destroyed, later entries are written to stderr. Entries already buffered in the failed transport are not replayed, and the transport is not restarted.
+Once the transport stream is destroyed, later entries are written to stderr, including those that would have gone to stdout, since stdout runs in the same worker. Entries already buffered in the failed transport are not replayed, and the transport is not restarted.
 
 ### Flushing on shutdown
 
 ```ts
-process.on('SIGTERM', async () => {
-  await root.flush();
-  process.exit(0);
+process.once('SIGTERM', () => {
+  void root.flush().then(() => process.exit(0));
 });
 ```
 
-`flush()` resolves when the transport has flushed, after 10 seconds without an answer, or at once if the transport has already failed. It never rejects, and does not say which of these happened.
+`flush()` resolves when stdout and the transports have flushed, after 10 seconds without an answer, or at once if the transport has already failed. It never rejects, and does not say which of these happened. Each root flushes only its own outputs.
 
 ## Log entries
 
 ```json
-{"level":30,"time":1767225600000,"service":"orders","pid":4242,"hostname":"web-1","module":"checkout","action":"submit","requestId":"r-1","msg":"order placed","data":{"orderId":42}}
+{"level":30,"time":1767225600000,"service":"orders","pid":4242,"hostname":"web-1","module":"checkout","action":"submit","requestId":"r-1","data":{"orderId":42},"msg":"order placed"}
 ```
 
 | Field | Value |
@@ -134,7 +143,11 @@ process.on('SIGTERM', async () => {
 
 Context fields sit beside these at the top level.
 
-`err` uses Pino's error serializer: an `Error` becomes `type`, `message` and `stack`, with its cause chain in both (`oops: root cause`, `caused by: Error: root cause`) and its enumerable properties kept. Anything else, such as a string or plain object, is logged as it is.
+### Errors
+
+`err` uses Pino's error serializer, then the bounds below: an `Error` becomes `type`, `message` and `stack`, with its cause chain in both (`oops: root cause`, `caused by: Error: root cause`) and its enumerable properties kept. Pino treats any value with a string `message` as an error, so `{ message: 'denied', code: 403 }` becomes `{"type":"Object","message":"denied","stack":"","code":403}`. Anything else, such as a string or `{ reason: 'denied' }`, is logged as it is. An error that can't be serialized, such as a frozen one, is logged as `[Unserializable]`.
+
+Pass errors as the `error` argument rather than inside `data`: there, an `Error` logs as `{}`, since its `message` and `stack` aren't enumerable.
 
 ### Bounded values
 
@@ -201,11 +214,11 @@ src/
     context.ts             configureContext and per-entry resolution
     bound.ts               depth, breadth, cycle and BigInt bounding
     types.ts               the public types
-    __tests__/             unit tests, against a fake Pino transport
-test/component/            behaviour tests against the built package and real Pino transports
+    __tests__/             unit and type tests, against a fake Pino transport
+test/component/            behaviour tests against the packed package and real Pino transports
 ```
 
-`logger-acceptance-criteria.md` lists the behaviour this package implements, criterion by criterion.
+[`logger-acceptance-criteria.md`](https://github.com/jtkunley/logger/blob/main/logger-acceptance-criteria.md) lists the behaviour this package implements, criterion by criterion.
 
 ### Publishing
 

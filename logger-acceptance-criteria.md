@@ -1,6 +1,6 @@
 # Logger — Functional Acceptance Criteria
 
-Derived from the executable source and existing tests in `/Users/james/work/npm/logger`, at commit `958e33a0562f55066dc4d6e2042e93762e2ce14b`. README content and project configuration are excluded. These criteria describe current functionality, including its observable limits; they do not propose improvements.
+Derived from the executable source and existing tests of the previous implementation of this package, at commit `958e33a0562f55066dc4d6e2042e93762e2ce14b`. README content and project configuration are excluded. These criteria describe current functionality, including its observable limits; they do not propose improvements.
 
 **Implementation assumption:** Pino.
 

@@ -393,6 +393,24 @@ describe('error entries', () => {
         ]);
     });
 
+    it('logs an error that cannot be serialized as [Unserializable], without throwing', () => {
+        const { log, transport } = setup();
+        const hostile = Object.defineProperty(new Error('hostile'), 'detail', {
+            get(): never {
+                throw new Error('getter');
+            },
+            enumerable: true,
+        });
+
+        expect(() => log.error('frozen', Object.freeze(new Error('frozen')), {})).not.toThrow();
+        expect(() => log.error('hostile', hostile, { a: 1 })).not.toThrow();
+
+        expect(transport.entries()).toEqual([
+            expect.objectContaining({ msg: 'frozen', err: '[Unserializable]' }),
+            expect.objectContaining({ msg: 'hostile', err: '[Unserializable]', data: { a: 1 } }),
+        ]);
+    });
+
     it('leaves err out when the caught value is undefined', () => {
         const { log, transport } = setup();
 
@@ -431,6 +449,17 @@ describe('output', () => {
             err: { type: 'Error', message: 'worker crashed', stack: error.stack },
         });
         expect(diagnostic['time']).toBeGreaterThanOrEqual(before);
+    });
+
+    it('reports a transport error that is not an Error', () => {
+        const { transport } = setup();
+
+        transport.emit('error', 'worker gone');
+
+        expect(JSON.parse(stderr[0]!)).toMatchObject({
+            msg: 'Log transport failed; writing logs to stderr',
+            err: { type: 'Error', message: 'worker gone' },
+        });
     });
 
     it('keeps writing to the transport after an error while it is not destroyed', () => {

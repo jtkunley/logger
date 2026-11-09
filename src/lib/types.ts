@@ -5,9 +5,11 @@ export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogData = Record<string, unknown>;
 
 /**
- * Fields added to the top level of every entry. A function is a resolver, called
- * for each emitted entry; any other value is logged as it is. `undefined`
- * removes a key configured earlier.
+ * Fields added to the top level of every entry. A function is a synchronous,
+ * zero-argument resolver, called for each emitted entry; one that throws or
+ * returns `undefined` leaves its field out. Values are bounded like `data`.
+ * `undefined` removes a key configured earlier. The keys `level`, `time`, `pid`,
+ * `hostname`, `service`, `module`, `action`, `msg`, `data` and `err` are ignored.
  */
 export type LogContext = Record<string, unknown>;
 
@@ -37,7 +39,10 @@ export interface ChildLogger {
     error(message: string, error: unknown, data: LogData): void;
 }
 
-/** One service's logger, with its own level and outputs. */
+/**
+ * One service's logger, with its own level and outputs. Stdout and every
+ * transport share one worker thread, so a failing target affects them all.
+ */
 export interface RootLogger {
     child(module: string, action: string): ChildLogger;
     /** Changes the minimum level, for existing children too. */
