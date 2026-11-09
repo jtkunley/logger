@@ -28,9 +28,9 @@ Structured JSON logging for Node.js services, on top of [Pino](https://getpino.i
 - **Context is resolved, not stored.** `configureContext` takes values or functions. Functions run for each entry, so a request ID from an `AsyncLocalStorage` is current on every line. The logger never creates a context store of its own.
 - **Suppressed entries cost nothing.** Below the root's level, data is not read and context functions are not called.
 - **Payloads are bounded, inputs untouched.** `data`, context values and errors are copied with limits on depth and breadth, cycles marked and BigInts turned into strings. A value that throws while being read becomes `[Unserializable]` rather than an exception in the caller.
-- **I/O off the main thread.** Stdout and every transport run in Pino's worker thread; the calling thread only prepares and serializes each line.
+- **I/O off the main thread.** Stdout and every transport run in a Pino worker thread; the calling thread only prepares and serializes each line.
 - **A failed transport is reported, not hidden.** The first transport error writes one diagnostic to stderr, and once the transport is destroyed, entries go to stderr too.
-- **Shutdown can't hang.** `flush()` never rejects and gives up after 10 seconds.
+- **Flush means written.** `flush()` waits until every entry logged so far has been written by every output, not just handed to the worker. It never rejects and gives up after 10 seconds, so shutdown can't hang.
 - **Tested the way it runs.** Unit tests hold coverage at 100%, enforced in CI. Component tests build and pack the package as published, install the tarball beside the real Pino, and check stdout, stderr and log files from separate processes.
 
 ## Install
@@ -90,7 +90,7 @@ logger.configureContext({
 
 ### Transports
 
-Entries always go to stdout. `transports` adds outputs, run in Pino's worker thread:
+Entries always go to stdout. `transports` adds outputs, run in a worker thread:
 
 ```ts
 const root = logger.init('orders', {
@@ -102,7 +102,7 @@ const root = logger.init('orders', {
 });
 ```
 
-Any Pino transport target works, and its `options` are passed through; a target package such as `pino-pretty` must be installed by the application. A transport without a `level` receives everything the root emits; one with a `level` receives only entries at or above it, and can't receive anything the root suppresses. Stdout is always included and receives everything the root emits.
+Any Pino transport target works, and its `options` are passed through. A `target` is `pino/file`, an absolute path, a `file://` URL, or a package name, resolved from this package and then from the working directory; a package such as `pino-pretty` must be installed by the application. A transport without a `level` receives everything the root emits; one with a `level` receives only entries at or above it, and can't receive anything the root suppresses. Stdout is always included and receives everything the root emits.
 
 Stdout and the transports of one root share one worker thread, and each `init` starts another, so create roots once rather than per request.
 
@@ -122,7 +122,9 @@ process.once('SIGTERM', () => {
 });
 ```
 
-`flush()` resolves when stdout and the transports have flushed, after 10 seconds without an answer, or at once if the transport has already failed. It never rejects, and does not say which of these happened. Each root flushes only its own outputs.
+`flush()` resolves once every entry logged so far has been written by stdout and each transport, after 10 seconds without an answer, or at once if the transport has already failed. It never rejects, and does not say which of these happened. Each root flushes only its own outputs.
+
+Pino's own multi-target worker acknowledges a flush as soon as it has received the entries, before they are written. This package runs its own worker instead: it hands each entry to the outputs as it arrives, then waits for each output to finish. A file or stdout output (`pino/file`, or any SonicBoom) is awaited until its last write completes; another output is awaited through its `flush` or `flushSync` method, or its `drain` event, if it has one.
 
 ## Log entries
 
@@ -210,7 +212,8 @@ npm run build           # compile the publishable package into dist/
 src/
   index.ts                 the package entry point: logger, init, configureContext and types
   lib/
-    logger.ts              init, root and child loggers, transport fallback and flush
+    logger.ts              init, root and child loggers, target resolution, transport fallback and flush
+    worker.ts              the worker-thread side: loads targets, routes lines by level, flushes outputs
     context.ts             configureContext and per-entry resolution
     bound.ts               depth, breadth, cycle and BigInt bounding
     types.ts               the public types

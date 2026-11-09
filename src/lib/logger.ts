@@ -1,12 +1,17 @@
+import { createRequire } from 'module';
 import { hostname } from 'os';
+import { isAbsolute, join } from 'path';
 import pino from 'pino';
 import { boundValue, UNSERIALIZABLE } from './bound';
 import { resolveContext } from './context';
 import type { ChildLogger, LogData, LoggerOptions, LogLevel, RootLogger } from './types';
+import type { WorkerOptions, WorkerTarget } from './worker';
 
 /** `pino.transport` returns a thread-stream, whose `destroyed` getter is untyped. */
 type TransportStream = ReturnType<typeof pino.transport> & { readonly destroyed: boolean };
 
+/** The compiled worker, beside this file in the published package. */
+const WORKER = join(__dirname, 'worker.js');
 const STDOUT = 1;
 const FLUSH_TIMEOUT_MS = 10_000;
 const TRANSPORT_FAILED = 'Log transport failed; writing logs to stderr';
@@ -25,19 +30,40 @@ function serializeError(error: unknown): unknown {
 }
 
 /**
+ * Resolves a target the way Pino does, from this package, then from the
+ * application's working directory, where a package manager that doesn't hoist
+ * keeps the application's own transports.
+ */
+export function resolveTarget(target: string): string {
+    if (isAbsolute(target) || target.startsWith('file://')) {
+        return target;
+    }
+    for (const from of [__filename, join(process.cwd(), 'noop.js')]) {
+        try {
+            return createRequire(from).resolve(target);
+        } catch {
+            continue;
+        }
+    }
+    throw new Error(`Unable to resolve transport target "${target}"`);
+}
+
+/**
  * Creates a root logger for a service, writing JSON lines to stdout and any
- * configured transports through Pino's worker transport.
+ * configured transports from a worker thread.
  */
 export function init(service: string, options: LoggerOptions = {}): RootLogger {
+    const targets: WorkerTarget[] = [
+        { target: resolveTarget('pino/file'), options: { destination: STDOUT }, level: 20 },
+        ...(options.transports ?? []).map(({ target, options = {}, level = 'debug' }) => ({
+            target: resolveTarget(target),
+            options,
+            level: pino.levels.values[level]!,
+        })),
+    ];
     const transport = pino.transport({
-        targets: [
-            { target: 'pino/file', options: { destination: STDOUT }, level: 'debug' },
-            ...(options.transports ?? []).map(({ target, options = {}, level = 'debug' }) => ({
-                target,
-                options,
-                level,
-            })),
-        ],
+        target: WORKER,
+        options: { targets } satisfies WorkerOptions,
     }) as TransportStream;
 
     let reported = false;

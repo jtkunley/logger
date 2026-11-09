@@ -40,6 +40,7 @@ export async function runConsumer(body: string, args: string[] = []): Promise<Co
         cwd: consumerDir,
         // Below the component test timeout, so a hung script is killed before the test gives up.
         timeout: 12_000,
+        maxBuffer: 64 * 1024 * 1024,
     });
     return { stdout: parseLines(stdout), stderr: parseLines(stderr) };
 }

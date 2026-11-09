@@ -8,4 +8,4 @@
 - **Context:** `logger.configureContext` adds static values and per-entry resolvers to the top level of every entry, from every root.
 - **Bounded values:** `data`, context values and errors are copied with depth and breadth limits, cycle markers and BigInt strings, and a value that throws becomes `[Unserializable]`.
 - **Transport failure:** the first transport error is reported once on stderr, and entries go to stderr once the transport is destroyed.
-- **Flush:** `flush()` waits for the transport, at most 10 seconds, and never rejects.
+- **Flush:** `flush()` waits until every entry logged so far has been written by stdout and each transport, at most 10 seconds, and never rejects. Outputs run in this package's own worker rather than Pino's multi-target worker, which acknowledges a flush before entries are written.

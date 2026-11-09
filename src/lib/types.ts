@@ -15,7 +15,10 @@ export type LogContext = Record<string, unknown>;
 
 /** An extra output, beside stdout, run by Pino's worker transport. */
 export interface TransportOptions {
-    /** A Pino transport target, such as `pino/file` or a package name. */
+    /**
+     * A Pino transport target: `pino/file`, a package name resolved from this
+     * package or the working directory, an absolute path or a `file://` URL.
+     */
     target: string;
     /** Passed to the target as they are. */
     options?: Record<string, unknown>;
@@ -48,8 +51,9 @@ export interface RootLogger {
     /** Changes the minimum level, for existing children too. */
     level(level: LogLevel): void;
     /**
-     * Resolves once the outputs have flushed, after 10 seconds without an
-     * answer, or at once if the transport has failed. It never rejects.
+     * Resolves once every entry logged so far has been written by stdout and
+     * each transport, after 10 seconds without an answer, or at once if the
+     * transport has failed. It never rejects.
      */
     flush(): Promise<void>;
 }

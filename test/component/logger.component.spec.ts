@@ -54,6 +54,33 @@ describe('the installed logger on real Pino transports', () => {
         ]);
     });
 
+    it('has written thousands of entries to a file once flush resolves', async () => {
+        const file = join(workDir(), 'bulk.log');
+
+        const { stdout } = await runConsumer(
+            `
+            const { copyFileSync } = require('fs');
+            const root = logger.init('orders', {
+                transports: [{ target: 'pino/file', options: { destination: args[0] } }],
+            });
+            const log = root.child('import', 'batch');
+            for (let i = 0; i < 5000; i++) {
+                log.info('row', { i, payload: 'x'.repeat(200) });
+            }
+            await root.flush();
+            copyFileSync(args[0], args[0] + '.flushed');
+            `,
+            [file],
+        );
+
+        const entries = readEntries(`${file}.flushed`);
+        expect(entries).toHaveLength(5000);
+        expect(entries.map((entry) => (entry['data'] as { i: number }).i)).toEqual(
+            Array.from({ length: 5000 }, (_, i) => i),
+        );
+        expect(stdout).toHaveLength(5000);
+    });
+
     it('applies root level changes to every output, keeping transport levels', async () => {
         const dir = workDir();
         const all = join(dir, 'all.log');

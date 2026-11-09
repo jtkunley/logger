@@ -1,8 +1,10 @@
 import { EventEmitter } from 'events';
-import { hostname } from 'os';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs';
+import { hostname, tmpdir } from 'os';
+import { dirname, join } from 'path';
 import pino from 'pino';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { init } from '../logger';
+import { init, resolveTarget } from '../logger';
 import type { LoggerOptions } from '../types';
 import { clearContext, setContext as configureContext } from './context-helpers';
 
@@ -72,21 +74,48 @@ describe('init', () => {
         expect(transport.entries().map((entry) => entry['msg'])).toEqual(['shown']);
     });
 
-    it('sends stdout and each transport through one worker transport', () => {
+    it('sends stdout and each transport through one worker, with resolved targets and numeric levels', () => {
+        const pinoFile = require.resolve('pino/file');
+
         setup({
             transports: [
                 { target: 'pino/file', options: { destination: '/tmp/app.log' } },
-                { target: 'pino-pretty', level: 'error' },
+                { target: '/opt/transports/audit.js', level: 'error' },
+                { target: 'file:///opt/transports/metrics.mjs', level: 'warn' },
             ],
         });
 
         expect(pino.transport).toHaveBeenCalledWith({
-            targets: [
-                { target: 'pino/file', options: { destination: 1 }, level: 'debug' },
-                { target: 'pino/file', options: { destination: '/tmp/app.log' }, level: 'debug' },
-                { target: 'pino-pretty', options: {}, level: 'error' },
-            ],
+            target: join(__dirname, '..', 'worker.js'),
+            options: {
+                targets: [
+                    { target: pinoFile, options: { destination: 1 }, level: 20 },
+                    { target: pinoFile, options: { destination: '/tmp/app.log' }, level: 20 },
+                    { target: '/opt/transports/audit.js', options: {}, level: 50 },
+                    { target: 'file:///opt/transports/metrics.mjs', options: {}, level: 40 },
+                ],
+            },
         });
+    });
+
+    it('resolves a target from the working directory when this package cannot', () => {
+        const app = mkdtempSync(join(tmpdir(), 'logger-app-'));
+        const target = join(app, 'node_modules', 'app-only-transport', 'index.js');
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, 'module.exports = () => {};');
+        vi.spyOn(process, 'cwd').mockReturnValue(app);
+
+        try {
+            expect(resolveTarget('app-only-transport')).toBe(realpathSync(target));
+        } finally {
+            rmSync(app, { recursive: true, force: true });
+        }
+    });
+
+    it('throws for a target it cannot resolve', () => {
+        expect(() => init('orders', { transports: [{ target: 'no-such-transport' }] })).toThrow(
+            'Unable to resolve transport target "no-such-transport"',
+        );
     });
 
     it('creates a separate root each time, with its own service, level and output', () => {
