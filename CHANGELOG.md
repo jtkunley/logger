@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.0.0 (2026-11-08)
+## 1.0.1 (2026-11-09)
+
+The first release of this implementation. Version 1.0.0 belonged to an earlier implementation that has been unpublished, and npm doesn't allow a version to be reused.
 
 ### Features
 
